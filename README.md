@@ -1,3 +1,5 @@
+![Pirx - write-capable remediation agent](docs/assets/pirx-banner.gif)
+
 # Pirx
 
 **A write-capable remediation agent whose authority is granted per action,
