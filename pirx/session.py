@@ -33,6 +33,7 @@ from .consumer import VerdictBundle, parse
 from .errors import AdapterUnavailableRefusal, Refusal
 from .grant import ApprovalDecision, Grant, GrantIssuer, SpentGrant
 from .ledger import Ledger
+from .model.protocol import ProposalModel
 from .proposal import Proposal, RenderedProposal, prepare
 from .proposer import ProposalSet, propose
 from .registry import Registry
@@ -48,11 +49,13 @@ class Session:
         clock: Callable[[], float],
         registry: Registry,
         adapter: TicketAdapter | None = None,
+        model: ProposalModel | None = None,
     ) -> None:
         self.ledger = ledger
         self.clock = clock
         self.registry = registry
         self.adapter = adapter
+        self.model = model
         self.issuer = GrantIssuer(clock=clock)
 
     def _record_refusal(self, exc: Refusal) -> None:
@@ -87,7 +90,15 @@ class Session:
     def propose(
         self, bundle: VerdictBundle, budget: int = MAX_PROPOSALS_PER_RUN
     ) -> ProposalSet:
-        result = propose(bundle, budget=budget)
+        self.ledger.append(
+            "proposer.mode",
+            model_assisted=self.model is not None,
+        )
+        try:
+            result = propose(bundle, budget=budget, model=self.model)
+        except Refusal as exc:
+            self._record_refusal(exc)
+            raise
         for item in result.proposals:
             self.ledger.append(
                 "proposal.created",

@@ -433,17 +433,25 @@ def test_a15_plausible_forgery_is_accepted(
 
 def test_every_catalogue_row_has_a_test() -> None:
     """A catalogue that drifts from the suite is a coverage claim nobody
-    checks. Each `A##` row must name a test function that exists here."""
-    catalogue = (Path(__file__).parent / "CATALOGUE.md").read_text()
+    checks. Each `A##` row must name a test function that exists somewhere in
+    the harness package - attacks live in more than one module from 0.4.0.0,
+    so resolution walks the package rather than this module's globals."""
+    here = Path(__file__).parent
+    catalogue = (here / "CATALOGUE.md").read_text()
     rows = [
         line for line in catalogue.splitlines()
         if line.startswith("| A") and "`test_" in line
     ]
-    assert len(rows) == 20, f"expected 20 catalogue rows, found {len(rows)}"
-    module = globals()
+    assert len(rows) == 29, f"expected 29 catalogue rows, found {len(rows)}"
+
+    defined: set[str] = set()
+    for module_path in here.glob("test_*.py"):
+        for line in module_path.read_text().splitlines():
+            if line.startswith("def test_"):
+                defined.add(line[4:].split("(")[0])
     for row in rows:
         named = row.rsplit("`", 2)[1]
-        assert named in module, f"catalogue names missing test {named!r}"
+        assert named in defined, f"catalogue names missing test {named!r}"
 
 
 def test_the_registry_used_by_attacks_is_the_production_one() -> None:

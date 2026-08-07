@@ -1,9 +1,19 @@
 """Deterministic verdict-to-proposal mapping, with the proposal budget.
 
-Same bundle in, byte-identical proposals out. There is no clock, no
-randomness, no environment read, and no model in this module (settled
-decision 4): the model arrives at 0.4.0.0, and until then PT2 has nothing in
-the loop to attack.
+Two modes, and the human always knows which one produced what they are
+reading.
+
+**Deterministic** (the default, and the only mode through 0.3.0.0): same
+bundle in, byte-identical proposals out. No clock, no randomness, no
+environment read, no model.
+
+**Model-assisted** (0.4.0.0, opt-in): a model selects the action *by name
+from the registry* and writes a rationale. It supplies no parameters, no
+target, and no authority; its text lands inside the renderer's untrusted
+fence, labelled with its origin. If it returns anything outside its contract
+the run refuses - it does not fall back to the deterministic mapping, because
+a silent downgrade would make "a model chose this" and "code chose this"
+indistinguishable on the approval screen.
 
 The budget (PT13) is enforced **before rendering**, consumed in the producer's
 ranking order, so overflow can only ever drop the tail of the ranking - never
@@ -26,6 +36,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .consumer import Verdict, VerdictBundle
+from .errors import ModelRefusal
+from .model.protocol import ProposalModel
 from .proposal import Proposal
 from .registry import KNOWN_INTENTS
 from .types import MAX_PROPOSALS_PER_RUN, CveId, TargetId, UntrustedProse
@@ -55,8 +67,36 @@ def _target_for(verdict: Verdict) -> TargetId:
     return TargetId(f"ticket:{verdict.cve_id}")
 
 
+def _selection(
+    verdict: Verdict, model: ProposalModel | None
+) -> tuple[str, dict[str, UntrustedProse], dict[str, str]]:
+    """Action name plus the prose block and its origin labels."""
+    prose: dict[str, UntrustedProse] = {
+        "triage_note": UntrustedProse(verdict.triage_note.text),
+        "recommended_action": UntrustedProse(verdict.recommended_action.text),
+    }
+    origin = {"triage_note": "producer", "recommended_action": "producer"}
+    if model is None:
+        return DEFAULT_INTENT, prose, origin
+
+    chosen = model.propose(verdict)
+    # The client already refused anything outside the registry; this is the
+    # second, independent check, because a selection reaching a proposal
+    # unvalidated is the one failure this whole module exists to prevent.
+    if chosen.action not in KNOWN_INTENTS:
+        raise ModelRefusal(
+            "model selection escaped validation",
+            cve_id=verdict.cve_id, named=str(chosen.action)[:100],
+        )
+    prose["model_rationale"] = UntrustedProse(chosen.rationale)
+    origin["model_rationale"] = "pirx-model"
+    return chosen.action, prose, origin
+
+
 def propose(
-    bundle: VerdictBundle, budget: int = MAX_PROPOSALS_PER_RUN
+    bundle: VerdictBundle,
+    budget: int = MAX_PROPOSALS_PER_RUN,
+    model: ProposalModel | None = None,
 ) -> ProposalSet:
     """Map a bundle to at most ``budget`` proposals, in ranking order."""
     if budget < 0:
@@ -66,9 +106,11 @@ def propose(
     kept = eligible[:budget]
     dropped = eligible[budget:]
 
+    selections = [_selection(verdict, model) for verdict in kept]
+
     proposals = tuple(
         Proposal(
-            action=DEFAULT_INTENT,
+            action=action,
             target=_target_for(verdict),
             verdict=verdict.verdict_id,
             params={
@@ -82,14 +124,10 @@ def propose(
                 "score": f"{verdict.score:.2f}",
                 "nvd_url": verdict.nvd_url,
             },
-            prose={
-                "triage_note": UntrustedProse(verdict.triage_note.text),
-                "recommended_action": UntrustedProse(
-                    verdict.recommended_action.text
-                ),
-            },
+            prose=prose,
+            prose_origin=origin,
         )
-        for verdict in kept
+        for verdict, (action, prose, origin) in zip(kept, selections, strict=True)
     )
 
     return ProposalSet(

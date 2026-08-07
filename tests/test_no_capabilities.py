@@ -30,11 +30,15 @@ from pirx.registry import PRODUCTION_REGISTRY, Registry
 PACKAGE = Path(__file__).resolve().parent.parent / "pirx"
 
 #: Modules permitted to reach the outside world, and what each may reach.
-#: One network module from 0.3.0.0: the ticket adapter. Paths are relative to
+#: Two network modules: the ticket adapter (0.3.0.0) and the model client
+#: (0.4.0.0). Each addition to this set is a deliberate widening of what Pirx
+#: can reach, made in a diff, reviewed as one. Paths are relative to
 #: the package root, because the scrape walks subpackages - it globbed only
 #: `pirx/*.py` until 0.3.0.0, which would have left `adapters/` unchecked at
 #: precisely the moment the first network import landed (review finding F11).
-NETWORK_ALLOWLIST: frozenset[str] = frozenset({"adapters/jira.py"})
+NETWORK_ALLOWLIST: frozenset[str] = frozenset(
+    {"adapters/jira.py", "model/client.py"}
+)
 #: Only the ledger writes to disk. Sharpened in 0.2.0.0 (review finding F5):
 #: `cli.py` was previously allowlisted because the scrape could not tell
 #: `read_bytes` from `write_bytes`. It now can, so the runner is held to the
@@ -174,6 +178,28 @@ def test_every_known_intent_is_registered() -> None:
     assert set(KNOWN_INTENTS) == set(REVIEWED_ACTIONS)
 
 
+def test_the_model_boundary_cannot_reach_authority() -> None:
+    """No module under `model/` may import the grant, capability, registry
+    mutation, or ledger machinery. The model proposes and selects; it must
+    have no path to anything that grants, spends, or writes."""
+    forbidden = {"grant", "capability", "ledger", "session", "reconcile"}
+    offenders: list[str] = []
+    for path in modules():
+        if not rel(path).startswith("model/"):
+            continue
+        tree = ast.parse(path.read_text())
+        imported: set[str] = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module:
+                imported.add(node.module.split(".")[-1])
+            elif isinstance(node, ast.Import):
+                imported.update(a.name.split(".")[-1] for a in node.names)
+        hits = sorted(imported & forbidden)
+        if hits:
+            offenders.append(f"{rel(path)}: {hits}")
+    assert not offenders, f"model boundary reaches authority: {offenders}"
+
+
 def test_every_registered_action_names_an_adapter() -> None:
     for action in PRODUCTION_REGISTRY.actions():
         assert PRODUCTION_REGISTRY.require(action).adapter
@@ -218,6 +244,8 @@ def test_the_scrape_sees_subpackages() -> None:
     scanned = {rel(p) for p in modules()}
     assert "adapters/jira.py" in scanned
     assert "adapters/protocol.py" in scanned
+    assert "model/client.py" in scanned
+    assert "model/protocol.py" in scanned
     assert any("/" not in name for name in scanned)
 
 

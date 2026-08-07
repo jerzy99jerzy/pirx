@@ -1,5 +1,4 @@
 ![Pirx - write-capable remediation agent](docs/assets/pirx-banner.gif)
-
 # Pirx
 
 **A write-capable remediation agent whose authority is granted per action,
@@ -41,10 +40,15 @@ itself.
 | What was approved is what was shown | One render function produces the bytes; those bytes are the hash preimage; the terminal prints them verbatim inside a random-boundary frame. A test compares captured stdout against the preimage byte-for-byte. |
 | Everything is an event | A hash-chained ledger records proposals, decisions, grants, spends, refusals, attempts, and results. |
 
-The model never issues, modifies, or validates a grant. Through 0.3.0.0 there
-is no model in the loop at all - the proposer is deterministic, and prose
-enters at 0.4.0.0 with the renderer's untrusted-prose segregation as its
-entry condition.
+The model never issues, modifies, or validates a grant. From 0.4.0.0 it may
+do exactly two things: **select an action by name from the registry**, matched
+by exact string membership with no normalisation, and **write a rationale**
+that lands inside the renderer's untrusted fence, labelled with its origin. It
+supplies no parameters, no target, and no authority. If it returns anything
+outside that contract the run refuses rather than falling back, so the
+approval screen never hides which mind produced what a human is about to act
+on. Model assistance is opt-in, and which mode a run used is recorded in the
+ledger either way.
 
 ---
 
@@ -86,10 +90,14 @@ than building it.
 
 ## Where it sits
 
-```
-cve-digest (Rappaport)  ──  cve-digest.verdict/1  ──▶  Pirx  ──▶  ticketing
-     deterministic ranking      one direction,           acts only
-     LLM summarises only        no callback              under a grant
+```mermaid
+flowchart LR
+    R["cve-digest (Rappaport)<br/><i>deterministic ranking<br/>LLM summarises only</i>"]
+    P["Pirx<br/><i>acts only under a grant</i>"]
+    T["ticketing<br/><i>coordination layer</i>"]
+    R -->|"cve-digest.verdict/1"| P
+    P -->|"one approved action"| T
+    P -.->|"nothing. ever."| R
 ```
 
 Nothing flows back toward the ranking system - not at runtime, and not
@@ -143,6 +151,18 @@ export PIRX_JIRA_EMAIL="you@example.com"
 export PIRX_JIRA_TOKEN="..."
 ```
 
+### Enabling model assistance (optional)
+
+```bash
+export PIRX_ANTHROPIC_API_KEY="..."
+```
+
+Unset, the proposer is deterministic. Set, a model selects the action and
+writes the rationale. There is no partial mode and no automatic enablement,
+and the run records `proposer.mode` in the ledger either way - which mind
+wrote the sentence a human approved should never have to be inferred from an
+environment variable someone forgot was set.
+
 ### Reconciling an interrupted run
 
 If a process dies between a write attempt and its recorded result, the ledger
@@ -173,13 +193,29 @@ threat wearing a helpful face.
 
 ## Architecture
 
+```mermaid
+flowchart TB
+    V["verdict.json"] --> C["consumer<br/><i>hostile input becomes typed</i>"]
+    C --> PR["proposer<br/><i>selection from the registry;<br/>budget enforced</i>"]
+    PR --> RN["renderer<br/><i>the canonical bytes</i>"]
+    RN --> AP["approval CLI<br/><i>prints those bytes verbatim</i>"]
+    AP --> H(["human"])
+    H -->|approves| G["grant<br/><i>one action, once, briefly</i>"]
+    G --> CAP["capability<br/><i>at-most-once</i>"]
+    CAP --> AD["adapter<br/><i>the only network reach</i>"]
+    AD --> T["ticket"]
+    M["model<br/><i>prose and selection only</i>"] -.->|"never touches a grant"| PR
+    L[("ledger<br/><i>hash-chained</i>")]
+    C -.-> L
+    PR -.-> L
+    RN -.-> L
+    AP -.-> L
+    G -.-> L
+    CAP -.-> L
 ```
-verdict.json ─▶ consumer ─▶ proposer ─▶ renderer ─▶ approval CLI ─▶ human
-                                                                      │
-        ledger ◀── every step ────────────────────────┐         approves
-          ▲                                            │              │
-          └──────── capability ◀── adapter ◀── grant ◀─┴──────────────┘
-```
+
+Dotted lines into the ledger are events. Every step writes to it; **no step
+reads it back to make a decision.**
 
 Four trust zones, and the boundaries between them are the design: hostile
 input becomes typed objects at the consumer; typed objects become bytes for
@@ -196,7 +232,8 @@ back to make a decision.
 | `grant.py` | Issue, verify totally, spend once |
 | `registry.py` | The reviewed write surface, as inert data |
 | `capability.py` | Execution semantics: at-most-once, idempotency key, no refund |
-| `adapters/` | The only modules permitted to reach the network |
+| `model/` | The model boundary: selection plus prose, validated as hostile input |
+| `adapters/` | Ticket adapters; with `model/client.py`, the only network reach |
 | `reconcile.py` | Answer "did it land" for interrupted attempts; never retries |
 | `session.py` | The shared recording path used by the runner and the harness |
 | `ledger.py` | Hash-chained append-only JSONL, plus its verifier |
@@ -208,8 +245,8 @@ Full detail in `docs/ARCHITECTURE.md`.
 
 ## The harness
 
-`tests/harness/` runs twenty scripted attacks in CI on every push, one per
-threat-model row. The pass criterion is uniform: the attack ends in the
+`tests/harness/` runs twenty-nine scripted attacks in CI on every push, one
+per threat-model row. The pass criterion is uniform: the attack ends in the
 correct typed refusal **and** that refusal appears in the ledger the product
 wrote. Asserting on the exception alone would test the code path; asserting
 on the ledger tests the deliverable.
@@ -223,6 +260,8 @@ about:
 - **A11 documents rather than defends.** It shows that an in-process
   spent-set is per-process, which is why HMAC grants and a durable spend
   store are coupled and must ship in the same version.
+- **A21-A29 treat the model as an adversary** holding a copy of the source,
+  because from a control standpoint it is indistinguishable from one.
 
 The harness is verified by mutation: mutants are introduced into the product
 and the harness is observed failing. The runs are recorded in the sprint
@@ -262,6 +301,7 @@ dispositioned as fixed, accepted with reasons, or deferred.
 | `docs/ARCHITECTURE.md` | Implementation-level assumptions for 0.1.0.0-0.3.0.0 |
 | `docs/MERGE-PROCEDURE.md` | Branch protection, rebase, tags |
 | `docs/FAMILY.md` | Vendored family practices and the human-carried exchange protocol |
+| `docs/TODO.md` | Small non-scope work, each row with a named owner |
 | `docs/reviews/` | Pre-push reviews, one per version, findings dispositioned |
 | `docs/exchange/` | Development-level exchange entries with the upstream project |
 | `tests/harness/CATALOGUE.md` | The attack catalogue |
@@ -275,7 +315,7 @@ dispositioned as fixed, accepted with reasons, or deferred.
 | 0.1.0.0 | Trust loop, zero capabilities registered. **Shipped.** |
 | 0.2.0.0 | Hostile-agent harness, landing before any write. **Shipped.** |
 | 0.3.0.0 | First capability: ticket comment, at-most-once semantics. **Shipped.** |
-| 0.4.0.0 | The model enters the proposer, with untrusted-prose segregation in the renderer as its entry condition |
+| 0.4.0.0 | The model enters the proposer, behind the untrusted-prose fence. **Shipped.** |
 | 0.5.0.0 | Second capability: create a change record |
 
 Deferred with named owners, not forgotten: HMAC grants plus a durable spend
@@ -292,7 +332,7 @@ This project's own rule is that a number appears in documentation only when
 the code produced it. Accordingly:
 
 - Gated on Python 3.14.6 (macOS) and in CI on 3.14: ruff clean, mypy strict
-  clean, **114 tests passing**, of which 20 are harness attacks.
+  clean, **136 tests passing**, of which 29 are harness attacks.
 - The ledger chain detects record edits and interior gaps. It does **not**
   detect truncation of the tail; a test asserts that limitation so nobody
   claims otherwise.
@@ -302,6 +342,9 @@ the code produced it. Accordingly:
 - The Jira adapter's request construction, credential encoding, idempotency
   trailer, and response handling are tested against an injected transport.
   That a live Jira accepts them is **not** tested; see review finding F15.
+- The model client is tested the same way and with the same limit: reply
+  validation, exact-match selection, bounding, and refusal-without-fallback
+  are measured; that a live API returns what the tests assume is not.
 
 ---
 

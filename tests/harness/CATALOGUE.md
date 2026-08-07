@@ -41,6 +41,31 @@ future owner, not silent scope (P12).
 | A18 | Target system refuses the write | PT3 | unsuccessful result, grant **not** refunded | `test_a18_target_failure_is_not_a_refusal` |
 | A19 | Crash after the write landed | PT9 | `capability.outcome_reconciled`, no re-execution | `test_a19_crash_after_write_is_reconcilable_never_retried` |
 | A20 | Attempt recorded, write never landed | PT9 | `capability.outcome_unknown`, no re-execution | `test_a20_lost_write_is_reported_as_not_landed` |
+| A21 | Model names an action outside the registry | PT2 | `refusal.model` | `test_a21_model_names_an_action_outside_the_registry` |
+| A22 | Near-miss action names: whitespace, case, separators, traversal | PT2 | `refusal.model`, no normalisation | `test_a22_near_miss_action_names_are_refused_not_normalised` |
+| A23 | Malformed model reply: envelope, JSON, keys, types | PT2 | `refusal.model` | `test_a23_malformed_replies_are_refused` |
+| A24 | Oversized model rationale | PT2 | bounded at the boundary | `test_a24_oversized_rationale_is_bounded_at_the_boundary` |
+| A25 | Model writes an action-shaped sentence | PT2 | no param, target, or action changes | `test_a25_model_output_never_reaches_a_parameter` |
+| A26 | Model unavailable or misbehaving | PT2 | `refusal.model`, **no fallback** | `test_a26_model_failure_refuses_it_does_not_fall_back` |
+| A27 | Which mind proposed is recorded either way | PT6 | `proposer.mode` | `test_a27_the_ledger_records_which_mind_proposed` |
+| A28 | Model prose forges its own fence markers | PT6 | fence tag increments; content indented | `test_a28_model_prose_cannot_forge_or_escape_its_fence` |
+| A29 | Fence must stay deterministic | PT6 | identical bytes for identical input | `test_a29_fence_is_deterministic_for_identical_input` |
+
+## A21-A29 exist because 0.4.0.0 made PT2 and PT6 live
+
+Through 0.3.0.0 the proposer was deterministic, so prompt injection had
+nothing in the loop to steer and the approval screen carried no
+model-authored sentence. From 0.4.0.0 a model selects actions and writes text
+a human reads before approving. These attacks treat it as an adversary
+holding a copy of the source, because from a control standpoint it is
+indistinguishable from one.
+
+Two properties they defend that are easy to lose to a helpful refactor: the
+action name is matched by **exact string membership** (A22 - a validator that
+trims and case-folds is one an adversary writes input for), and a model
+failure **refuses rather than falling back** to the deterministic mapping
+(A26 - a silent downgrade hides from the approving human which mind produced
+what they are reading).
 
 ## A15 is the most important row, precisely because it passes
 

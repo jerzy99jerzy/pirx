@@ -39,6 +39,9 @@ from .adapters.jira import JiraAdapter, JiraCredentials, UrllibTransport
 from .adapters.protocol import TicketAdapter
 from .errors import Refusal
 from .ledger import Ledger
+from .model.client import AnthropicProposalModel, ModelCredentials
+from .model.client import UrllibTransport as ModelTransport
+from .model.protocol import ProposalModel
 from .reconcile import reconcile
 from .registry import PRODUCTION_REGISTRY, Registry
 from .session import Session
@@ -52,9 +55,11 @@ def run(
     registry: Registry = PRODUCTION_REGISTRY,
     clock: Callable[[], float] = time.monotonic,
     adapter: TicketAdapter | None = None,
+    model: ProposalModel | None = None,
 ) -> int:
     session = Session(
-        Ledger(ledger_path), clock=clock, registry=registry, adapter=adapter
+        Ledger(ledger_path), clock=clock, registry=registry,
+        adapter=adapter, model=model,
     )
     session.started(str(payload_path))
 
@@ -108,11 +113,28 @@ USAGE = (
     "  pirx run <verdict.json> [ledger.jsonl]\n"
     "  pirx reconcile <ledger.jsonl>\n"
     "\n"
-    "Credentials for the ticket adapter come from the environment:\n"
-    "  PIRX_JIRA_BASE_URL, PIRX_JIRA_EMAIL, PIRX_JIRA_TOKEN\n"
-    "With none set, the run stops at the write with a typed refusal and\n"
-    "nothing is written anywhere.\n"
+    "Credentials come from the environment:\n"
+    "  PIRX_JIRA_BASE_URL, PIRX_JIRA_EMAIL, PIRX_JIRA_TOKEN  (the write)\n"
+    "  PIRX_ANTHROPIC_API_KEY                                (optional model)\n"
+    "With no ticket credentials the run stops at the write with a typed\n"
+    "refusal and nothing is written anywhere. With no model key the proposer\n"
+    "is deterministic; either way the mode is recorded in the ledger.\n"
 )
+
+
+def model_from_environment() -> ProposalModel | None:
+    """Opt-in, and only when fully configured.
+
+    Absent the key, the proposer stays deterministic. There is no partial
+    model mode and no automatic enablement: which mind wrote the rationale a
+    human is about to approve should never depend on an environment variable
+    someone forgot was set - so the run records the mode in the ledger either
+    way.
+    """
+    key = os.environ.get("PIRX_ANTHROPIC_API_KEY")
+    if not key:
+        return None
+    return AnthropicProposalModel(ModelCredentials(api_key=key), ModelTransport())
 
 
 def adapter_from_environment() -> TicketAdapter | None:
@@ -159,6 +181,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return run(
             payload, book, sys.stdout, sys.stdin.readline,
             adapter=adapter_from_environment(),
+            model=model_from_environment(),
         )
 
     sys.stderr.write(USAGE)
