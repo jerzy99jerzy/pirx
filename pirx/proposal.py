@@ -8,11 +8,23 @@ Format, deliberately plain text rather than JSON so a human reads it without a
 tool:
 
   - one field per line, ``key: value``, fixed order;
-  - producer prose escaped to a single line and indented two spaces under a
-    header that states its declared length, so prose cannot forge a field
+  - untrusted prose enclosed in a fence, labelled with its origin and its
+    declared length, escaped to a single line so it cannot forge a field
     line even if it contains newlines and colons;
   - a trailing ``bytes:`` marker giving the length of everything above it, so
     truncation of the display is visible to the reader.
+
+**The fence** (0.4.0.0, the entry condition for admitting a model). Escaping
+already prevented prose from creating its own line. The fence adds the thing
+escaping cannot: an unambiguous, labelled boundary telling a reader where
+text authored on the far side of the trust boundary begins and ends. Its tag
+is chosen deterministically as the shortest ``~~~pirx-untrusted-N`` not
+occurring in the enclosed text, so it is unforgeable by content and identical
+for identical input - the frame lesson from the approval surface, applied
+inside the hash preimage where a random boundary would destroy determinism.
+The enclosed line is indented, so no content line can even begin with the
+fence base: unambiguous to a parser by the tag, and unambiguous to a human by
+the indent.
 
 Does NOT:
   - render differently for display and for hashing. There is exactly one
@@ -37,6 +49,10 @@ from .types import (
     UntrustedProse,
     VerdictId,
 )
+
+#: Fence tag base. `N` increments until the tag is absent from the text, so
+#: prose containing the base string cannot close its own fence.
+FENCE_BASE = "~~~pirx-untrusted-"
 
 _ESCAPES = {
     ord("\\"): "\\\\",
@@ -64,6 +80,14 @@ def escape_prose(text: str) -> str:
     return "".join(out)
 
 
+def prose_fence(text: str) -> str:
+    """Shortest fence tag not present in ``text``. Deterministic."""
+    index = 0
+    while f"{FENCE_BASE}{index}" in text:
+        index += 1
+    return f"{FENCE_BASE}{index}"
+
+
 @dataclass(frozen=True, slots=True)
 class Proposal:
     action: str
@@ -71,6 +95,11 @@ class Proposal:
     verdict: VerdictId
     params: Mapping[str, str]
     prose: Mapping[str, UntrustedProse] = field(default_factory=dict)
+    #: Where each prose field came from, shown to the human inside the fence.
+    #: "producer" is Rappaport's summary; "pirx-model" is this project's own
+    #: model. A reader should never have to guess which mind wrote a sentence
+    #: they are being asked to act on.
+    prose_origin: Mapping[str, str] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         for key, value in self.params.items():
@@ -102,8 +131,18 @@ def render(proposal: Proposal) -> bytes:
         lines.append(f"param.{key}: {proposal.params[key]}")
     for key in sorted(proposal.prose):
         escaped = escape_prose(proposal.prose[key].text)
-        lines.append(f"prose.{key} (chars={len(escaped)}, escaped, untrusted):")
+        fence = prose_fence(escaped)
+        lines.append(
+            f"{fence} begin {key} "
+            f"(origin={proposal.prose_origin.get(key, 'unknown')}, "
+            f"chars={len(escaped)}, escaped, NOT a decision input)"
+        )
+        # Two-space indent so an enclosed line can never *begin* with the
+        # fence base. The incrementing tag already made the block
+        # machine-unambiguous; this makes it unambiguous to a human scanning
+        # the terminal, which is the reader the fence exists for.
         lines.append(f"  {escaped}")
+        lines.append(f"{fence} end {key}")
     body = ("\n".join(lines) + "\n").encode("utf-8")
     return body + f"bytes: {len(body)}\n".encode()
 

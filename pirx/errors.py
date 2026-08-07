@@ -102,6 +102,20 @@ class AdapterUnavailableRefusal(Refusal):
     event = "refusal.adapter_unavailable"
 
 
+# --- Model boundary (PT2) ---------------------------------------------------
+
+
+class ModelRefusal(Refusal):
+    """The model returned something outside its contract, or not at all.
+
+    A refusal, not a fallback: silently reverting to the deterministic
+    proposer would hide from the approving human which mind produced what
+    they are reading.
+    """
+
+    event = "refusal.model"
+
+
 # --- Ledger (PT9) -----------------------------------------------------------
 
 

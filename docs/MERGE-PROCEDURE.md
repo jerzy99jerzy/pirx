@@ -55,12 +55,30 @@ git commit -m "chore: version 0.N.0.0"
 git push -u origin feat/<name>
 ```
 
-Open the PR and watch the checks:
+Open the PR, then watch the checks **as a separate command**. Chaining them
+races GitHub: at the instant the PR is created the check runs may not exist
+yet, `--watch` returns immediately with nothing to watch, and the next command
+in the chain hits a PR that is not yet mergeable (observed on PR #3).
 
 ```
 gh pr create --fill --base main
+```
+
+```
 gh pr checks --watch
 ```
+
+If a merge is refused as not-yet-mergeable, the right answer is to wait or to
+queue it:
+
+```
+gh pr merge --rebase --delete-branch --auto
+```
+
+`--auto` merges once the requirements are met, which is what the repository's
+auto-merge setting is for. **`--admin` is forbidden.** `gh` suggests it, and
+taking it once turns `enforce_admins` from a control into a suggestion - the
+same reasoning that refuses a configurable security limit (P6).
 
 ## What `strict: true` costs, stated because it will bite
 
