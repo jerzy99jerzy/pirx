@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Pirx animated banner -> GIF. Matches cve-digest / RAPPAPORT terminal aesthetic."""
 import math
+import os
+
 import pyfiglet
 from PIL import Image, ImageDraw, ImageFont
 
@@ -164,6 +166,5 @@ frames[0].save(
     "/home/claude/pirx-banner.gif", save_all=True, append_images=frames[1:],
     duration=90, loop=0, optimize=True, disposal=2,
 )
-import os
 print("preview + gif written; gif size:",
       round(os.path.getsize("/home/claude/pirx-banner.gif")/1024, 1), "KB")
