@@ -1,6 +1,6 @@
 [project]
 name = "pirx"
-version = "0.1.0.0"
+version = "0.2.0.0"
 description = "Remediation agent whose authority is granted per action, not per session"
 requires-python = ">=3.14"
 
@@ -9,13 +9,13 @@ pirx = "pirx.cli:main"
 
 [tool.ruff]
 line-length = 88
-target-version = "py314"
+target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.mypy]
-python_version = "3.14"
+python_version = "3.12"
 strict = true
 warn_unreachable = false
 
