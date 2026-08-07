@@ -23,8 +23,14 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+from .adapters.protocol import TicketAdapter
+from .capability import (
+    ExecutionOutcome,
+    execute_ticket_comment,
+    idempotency_key,
+)
 from .consumer import VerdictBundle, parse
-from .errors import Refusal
+from .errors import AdapterUnavailableRefusal, Refusal
 from .grant import ApprovalDecision, Grant, GrantIssuer, SpentGrant
 from .ledger import Ledger
 from .proposal import Proposal, RenderedProposal, prepare
@@ -41,10 +47,12 @@ class Session:
         ledger: Ledger,
         clock: Callable[[], float],
         registry: Registry,
+        adapter: TicketAdapter | None = None,
     ) -> None:
         self.ledger = ledger
         self.clock = clock
         self.registry = registry
+        self.adapter = adapter
         self.issuer = GrantIssuer(clock=clock)
 
     def _record_refusal(self, exc: Refusal) -> None:
@@ -139,14 +147,44 @@ class Session:
         self.ledger.append("grant.spent", nonce=spent.grant.nonce)
         return spent
 
-    def execute(self, spent: SpentGrant, action: str) -> None:
-        """0.1.0.0-0.2.0.0: always refuses, because the registry is empty."""
+    def execute(
+        self, spent: SpentGrant, rendered: RenderedProposal
+    ) -> ExecutionOutcome:
+        """Perform the approved action, recording intent before outcome.
+
+        Order is load-bearing: the grant is already spent (at-most-once), the
+        attempt is written **before** the adapter is called, and the result
+        follows. A crash in between leaves an attempt with no result, which
+        `reconcile.py` turns into an explicit `outcome_unknown` rather than a
+        silence.
+        """
+        action = rendered.proposal.action
         try:
             self.registry.require(action)
+            if self.adapter is None:
+                raise AdapterUnavailableRefusal(
+                    "capability is registered but no adapter is wired",
+                    action=action, target=spent.grant.target,
+                )
         except Refusal as exc:
             self._record_refusal(exc)
             raise
-        self.ledger.append("capability.absent", action=action)
+
+        key = idempotency_key(spent.grant.action_hash)
+        self.ledger.append(
+            "capability.attempt",
+            action=action, target=spent.grant.target, idempotency_key=key,
+        )
+        outcome = execute_ticket_comment(spent, rendered, self.adapter)
+        self.ledger.append(
+            "capability.result",
+            action=action, target=outcome.target, idempotency_key=key,
+            succeeded=outcome.succeeded, detail=outcome.detail,
+            comment_id=(
+                outcome.reference.comment_id if outcome.reference else None
+            ),
+        )
+        return outcome
 
     def finished(self, exit_code: int) -> None:
         self.ledger.append("run.finished", exit_code=exit_code)

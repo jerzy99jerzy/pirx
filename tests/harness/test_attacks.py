@@ -18,9 +18,11 @@ from typing import Any
 
 import pytest
 from conftest import TEST_ACTION, FakeClock, bundle, verdict
+from fakes import RecordingAdapter
 
 from pirx import approve, ledger
 from pirx.errors import (
+    AdapterUnavailableRefusal,
     EnumRefusal,
     ExpiredGrantRefusal,
     HashMismatchRefusal,
@@ -31,6 +33,7 @@ from pirx.errors import (
     UnregisteredActionRefusal,
 )
 from pirx.grant import ApprovalDecision
+from pirx.reconcile import reconcile
 from pirx.registry import PRODUCTION_REGISTRY, Registry
 from pirx.session import Session
 from pirx.types import ActionHash, TargetId
@@ -55,8 +58,15 @@ def find(path: Path, event: str) -> dict[str, Any]:
     return matches[0]
 
 
-def session(tmp_path: Path, clock: FakeClock, registry: Registry) -> Session:
-    return Session(ledger.Ledger(tmp_path / "ledger.jsonl"), clock, registry)
+def session(
+    tmp_path: Path,
+    clock: FakeClock,
+    registry: Registry,
+    adapter: RecordingAdapter | None = None,
+) -> Session:
+    return Session(
+        ledger.Ledger(tmp_path / "ledger.jsonl"), clock, registry, adapter=adapter
+    )
 
 
 def approval(rendered: Any, approved: bool = True) -> ApprovalDecision:
@@ -192,19 +202,130 @@ def test_a09_frame_forgery(tmp_path: Path, clock: FakeClock) -> None:
 # --- A10-A11: authority reach (PT7, PT8) ------------------------------------
 
 
-def test_a10_ungranted_execution(
+def test_a10_unregistered_action_cannot_execute(
     tmp_path: Path, clock: FakeClock, book: Path
 ) -> None:
-    """The production registry holds nothing, so a fully valid grant still
-    cannot execute. The write surface is empty by construction."""
-    sess = session(tmp_path, clock, PRODUCTION_REGISTRY)
+    """An action outside the reviewed registry cannot execute even with a
+    perfectly valid, freshly spent grant. Authority is not the same thing as
+    reach."""
+    sess = session(tmp_path, clock, Registry({}), adapter=RecordingAdapter())
     rendered = first_rendered(sess, bundle())
     grant = sess.issue(approval(rendered), rendered)
     spent = sess.spend(grant, rendered.action_hash, rendered.proposal.target)
     with pytest.raises(UnregisteredActionRefusal):
-        sess.execute(spent, rendered.proposal.action)
+        sess.execute(spent, rendered)
     assert find(book, "refusal.unregistered_action")["payload"]["registered"] == []
-    assert "capability.absent" not in names(book)
+    assert "capability.attempt" not in names(book)
+
+
+def test_a16_registered_action_without_adapter_refuses(
+    tmp_path: Path, clock: FakeClock, book: Path
+) -> None:
+    """A clone with no credentials runs the whole loop and stops at the
+    write. The safe default is a typed refusal, not a fallback."""
+    sess = session(tmp_path, clock, PRODUCTION_REGISTRY, adapter=None)
+    rendered = first_rendered(sess, bundle())
+    grant = sess.issue(approval(rendered), rendered)
+    spent = sess.spend(grant, rendered.action_hash, rendered.proposal.target)
+    with pytest.raises(AdapterUnavailableRefusal):
+        sess.execute(spent, rendered)
+    assert find(book, "refusal.adapter_unavailable")
+    assert "capability.attempt" not in names(book)
+
+
+def test_a17_intent_written_before_the_write(
+    tmp_path: Path, clock: FakeClock, book: Path
+) -> None:
+    """`capability.attempt` precedes the adapter call and `capability.result`
+    follows, so an action with no preceding attempt is detectable (PT9) and
+    an attempt with no result is reconcilable."""
+    adapter = RecordingAdapter(observe=lambda: names(book))
+    sess = session(tmp_path, clock, PRODUCTION_REGISTRY, adapter=adapter)
+    rendered = first_rendered(sess, bundle())
+    grant = sess.issue(approval(rendered), rendered)
+    spent = sess.spend(grant, rendered.action_hash, rendered.proposal.target)
+    outcome = sess.execute(spent, rendered)
+
+    # Measured from the adapter's own vantage point: the attempt was already
+    # durable when the write began. Asserting only on final ordering would
+    # pass for an implementation that writes first and records afterwards.
+    assert "capability.attempt" in adapter.observed_before_write
+    assert "capability.result" not in adapter.observed_before_write
+    order = names(book)
+    assert order.index("capability.attempt") < order.index("capability.result")
+    assert find(book, "capability.attempt")["payload"]["idempotency_key"] == (
+        rendered.action_hash
+    )
+    assert outcome.succeeded
+    assert adapter.calls == [(rendered.proposal.target, rendered.action_hash)]
+
+
+def test_a18_target_failure_is_not_a_refusal(
+    tmp_path: Path, clock: FakeClock, book: Path
+) -> None:
+    """The far side saying no is a different fact from Pirx declining. It is
+    recorded as an unsuccessful result, and the grant is **not** refunded."""
+    adapter = RecordingAdapter(fail_with="jira returned 500")
+    sess = session(tmp_path, clock, PRODUCTION_REGISTRY, adapter=adapter)
+    rendered = first_rendered(sess, bundle())
+    grant = sess.issue(approval(rendered), rendered)
+    spent = sess.spend(grant, rendered.action_hash, rendered.proposal.target)
+    outcome = sess.execute(spent, rendered)
+
+    assert outcome.succeeded is False
+    assert find(book, "capability.result")["payload"]["succeeded"] is False
+    with pytest.raises(SpentGrantRefusal):
+        sess.spend(grant, rendered.action_hash, rendered.proposal.target)
+
+
+def test_a19_crash_after_write_is_reconcilable_never_retried(
+    tmp_path: Path, clock: FakeClock, book: Path
+) -> None:
+    """The case at-most-once buys and pays for: the write landed, the process
+    died before recording it. Reconciliation reports the truth and issues no
+    authority."""
+    adapter = RecordingAdapter(vanish_after_write=True)
+    sess = session(tmp_path, clock, PRODUCTION_REGISTRY, adapter=adapter)
+    rendered = first_rendered(sess, bundle())
+    grant = sess.issue(approval(rendered), rendered)
+    spent = sess.spend(grant, rendered.action_hash, rendered.proposal.target)
+    with pytest.raises(KeyboardInterrupt):
+        sess.execute(spent, rendered)
+
+    assert "capability.attempt" in names(book)
+    assert "capability.result" not in names(book)
+
+    adapter.vanish_after_write = False
+    reported = reconcile(book, adapter)
+    assert len(reported) == 1
+    assert "landed" in reported[0]
+    assert find(book, "capability.outcome_reconciled")["payload"][
+        "idempotency_key"
+    ] == rendered.action_hash
+    # Reconciliation wrote nothing to the target system.
+    assert len(adapter.calls) == 1
+
+
+def test_a20_lost_write_is_reported_as_not_landed(
+    tmp_path: Path, clock: FakeClock, book: Path
+) -> None:
+    """The other half of the same case: the attempt was recorded, the write
+    never reached the target. Reconciliation says so and stops - a fresh
+    grant is a human decision."""
+    adapter = RecordingAdapter()
+    sess = session(tmp_path, clock, PRODUCTION_REGISTRY, adapter=adapter)
+    rendered = first_rendered(sess, bundle())
+    book.parent.mkdir(exist_ok=True)
+    sess.ledger.append(
+        "capability.attempt",
+        action="ticket.comment",
+        target=rendered.proposal.target,
+        idempotency_key=rendered.action_hash,
+    )
+    reported = reconcile(book, adapter)
+    assert "did NOT land" in reported[0]
+    assert find(book, "capability.outcome_unknown")["payload"]["reason"]
+    assert adapter.calls == []
 
 
 def test_a11_cross_run_authority_residual(tmp_path: Path, clock: FakeClock) -> None:
@@ -318,7 +439,7 @@ def test_every_catalogue_row_has_a_test() -> None:
         line for line in catalogue.splitlines()
         if line.startswith("| A") and "`test_" in line
     ]
-    assert len(rows) == 15, f"expected 15 catalogue rows, found {len(rows)}"
+    assert len(rows) == 20, f"expected 20 catalogue rows, found {len(rows)}"
     module = globals()
     for row in rows:
         named = row.rsplit("`", 2)[1]
@@ -326,7 +447,8 @@ def test_every_catalogue_row_has_a_test() -> None:
 
 
 def test_the_registry_used_by_attacks_is_the_production_one() -> None:
-    """Attacks must run against the shipped registry, not a fixture. A
-    harness that quietly substitutes a friendlier world proves nothing."""
-    assert len(PRODUCTION_REGISTRY) == 0
+    """Attacks run against the shipped registry, not a fixture. A harness
+    that quietly substitutes a friendlier world proves nothing. Where an
+    attack needs an empty registry (A10) it says so in the test body."""
+    assert PRODUCTION_REGISTRY.actions() == ("ticket.comment",)
     assert TEST_ACTION not in PRODUCTION_REGISTRY
