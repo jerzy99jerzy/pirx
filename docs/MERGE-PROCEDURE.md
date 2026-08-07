@@ -38,13 +38,20 @@ Work, then run the local gate before pushing anything:
 ruff check . && mypy pirx && python -m pytest -q
 ```
 
-Commit the feature and the version bump separately, then tag:
+Commit the feature and the version bump separately. **The bump commit must
+carry the version change itself** - `pyproject.toml`, `pirx/__init__.py`,
+`STATUS.json` - and nothing else. An empty marker commit does not survive a
+rebase merge, which discards empty commits, and the tag then lands on a
+feature commit (review finding F17). So the feature commit leaves those three
+files at the previous version:
 
 ```
-git add <explicit file list>        # never git add -A
+git add <explicit file list>        # never git add -A, and not the version files
 git commit -m "feat: ..."
-git commit --allow-empty -m "chore: version 0.N.0.0"
-git tag v0.N.0.0
+
+# now bump, as a commit whose entire diff is the version
+git add pyproject.toml pirx/__init__.py STATUS.json
+git commit -m "chore: version 0.N.0.0"
 git push -u origin feat/<name>
 ```
 
