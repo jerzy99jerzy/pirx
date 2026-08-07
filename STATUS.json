@@ -1,7 +1,9 @@
 {
   "project": "pirx",
-  "version": "0.1.0.0",
-  "consumes": ["cve-digest.verdict/1"],
+  "version": "0.2.0.0",
+  "consumes": [
+    "cve-digest.verdict/1"
+  ],
   "produces": [],
   "registered_capabilities": 0,
   "family_doc": "1.0",

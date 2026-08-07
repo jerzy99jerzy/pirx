@@ -30,13 +30,19 @@ PACKAGE = Path(__file__).resolve().parent.parent / "pirx"
 #: Empty for network in 0.1.0.0: there is no adapter yet, and the first one
 #: arrives with the first capability at 0.3.0.0.
 NETWORK_ALLOWLIST: frozenset[str] = frozenset()
-FILE_WRITE_ALLOWLIST: frozenset[str] = frozenset({"ledger.py", "cli.py"})
+#: Only the ledger writes to disk. Sharpened in 0.2.0.0 (review finding F5):
+#: `cli.py` was previously allowlisted because the scrape could not tell
+#: `read_bytes` from `write_bytes`. It now can, so the runner is held to the
+#: same rule as everything else.
+FILE_WRITE_ALLOWLIST: frozenset[str] = frozenset({"ledger.py"})
 
 NETWORK_MODULES = {
     "socket", "ssl", "http", "urllib", "urllib3", "requests", "httpx",
     "aiohttp", "ftplib", "smtplib", "telnetlib", "asyncio", "xmlrpc",
 }
-FILE_WRITE_CALLS = {"open", "write_text", "write_bytes", "mkdir", "unlink", "rename"}
+FILE_WRITE_CALLS = {"write_text", "write_bytes", "mkdir", "unlink", "rename",
+                    "touch", "rmdir", "replace", "chmod", "symlink_to"}
+WRITE_MODE_CHARS = set("wax+")
 DYNAMIC_IMPORT_NAMES = {"importlib", "__import__"}
 SUBPROCESS_MODULES = {"subprocess", "os", "shutil", "ctypes", "multiprocessing"}
 
@@ -53,6 +59,50 @@ def imported_roots(tree: ast.AST) -> set[str]:
         elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
             roots.add(node.module.split(".")[0])
     return roots
+
+
+def write_mode_opens(tree: ast.AST) -> list[int]:
+    """Line numbers of ``open(...)`` calls that request writing.
+
+    Reading a file is not a write surface. Distinguishing them is what closes
+    review finding F5; a scrape that flags `read_bytes` teaches the reader to
+    widen the allowlist, which is the opposite of what an allowlist is for.
+
+    Fails closed: an unresolvable mode argument counts as a write, because a
+    check that guesses in the permissive direction is not a check.
+    """
+    unresolved = object()
+    hits: list[int] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        name = func.id if isinstance(func, ast.Name) else (
+            func.attr if isinstance(func, ast.Attribute) else ""
+        )
+        if name != "open":
+            continue
+        # Builtin form is open(file, mode); Path method form is p.open(mode).
+        # Getting this wrong in the permissive direction would silently
+        # un-check every method-style write, so the two are handled apart.
+        mode_index = 1 if isinstance(func, ast.Name) else 0
+        mode: object = None  # absent mode means the default, which is read
+        if len(node.args) > mode_index:
+            arg = node.args[mode_index]
+            mode = arg.value if isinstance(arg, ast.Constant) else unresolved
+        for kw in node.keywords:
+            if kw.arg == "mode":
+                mode = (
+                    kw.value.value
+                    if isinstance(kw.value, ast.Constant)
+                    else unresolved
+                )
+        writes = mode is unresolved or (
+            isinstance(mode, str) and bool(set(mode) & WRITE_MODE_CHARS)
+        )
+        if writes:
+            hits.append(node.lineno)
+    return hits
 
 
 def called_attrs(tree: ast.AST) -> set[str]:
@@ -128,10 +178,22 @@ def test_file_writes_only_in_the_allowlisted_modules() -> None:
     for path in modules():
         if path.name in FILE_WRITE_ALLOWLIST:
             continue
-        hits = called_attrs(ast.parse(path.read_text())) & FILE_WRITE_CALLS
-        if hits:
-            offenders.append(f"{path.name}: {sorted(hits)}")
+        tree = ast.parse(path.read_text())
+        hits = sorted(called_attrs(tree) & FILE_WRITE_CALLS)
+        opens = write_mode_opens(tree)
+        if hits or opens:
+            offenders.append(f"{path.name}: calls={hits} write_opens={opens}")
     assert not offenders, f"file write outside allowlist: {offenders}"
+
+
+def test_the_scrape_can_tell_a_read_from_a_write() -> None:
+    """The distinguishing capability itself is tested, because an allowlist
+    narrowed on the strength of a check nobody verified is worse than a wide
+    one honestly labelled."""
+    reader = ast.parse("p.open(); q.open('r'); Path(x).read_bytes()")
+    writer = ast.parse("p.open('ab'); q.open(mode='w')")
+    assert write_mode_opens(reader) == []
+    assert len(write_mode_opens(writer)) == 2
 
 
 def test_allowlist_is_minimal_and_named() -> None:
@@ -145,16 +207,44 @@ def test_allowlist_is_minimal_and_named() -> None:
 # --- Claim 2b: refusals are never suppressed --------------------------------
 
 
-def test_only_the_runner_catches_refusals() -> None:
-    """A caught refusal outside the runner is a warning wearing a refusal's
-    name (P11). ``cli.py`` is the single sanctioned catch site."""
+def test_refusals_are_recorded_or_terminal_never_swallowed() -> None:
+    """A refusal may be caught outside the runner **only to record it**, and
+    such a handler must end in a bare ``raise``.
+
+    Sharpened in 0.2.0.0: the earlier rule ("only the runner may catch") was
+    too blunt once `session.py` needed to write refusal events. Recording is
+    not suppression; swallowing is. This checks the property that actually
+    matters - control flow still terminates at the caller - instead of the
+    proxy that happened to hold in 0.1.0.0 (P11).
+    """
     offenders: list[str] = []
     for path in modules():
         if path.name == "cli.py":
             continue
         for node in ast.walk(ast.parse(path.read_text())):
-            if isinstance(node, ast.ExceptHandler):
-                names = ast.dump(node.type) if node.type else "bare"
-                if "Refusal" in names:
-                    offenders.append(f"{path.name}:{node.lineno}")
-    assert not offenders, f"refusal caught outside the runner: {offenders}"
+            if not isinstance(node, ast.ExceptHandler):
+                continue
+            handled = ast.dump(node.type) if node.type else "bare"
+            if "Refusal" not in handled:
+                continue
+            last = node.body[-1]
+            reraises = isinstance(last, ast.Raise) and last.exc is None
+            if not reraises:
+                offenders.append(f"{path.name}:{node.lineno}")
+    assert not offenders, f"refusal caught without re-raise: {offenders}"
+
+
+def test_the_runner_is_the_only_terminal_catch_site() -> None:
+    """Exactly one module may end a refusal's life. If a second appears, the
+    question 'where do refusals go' has two answers, which is one too many."""
+    terminal: list[str] = []
+    for path in modules():
+        for node in ast.walk(ast.parse(path.read_text())):
+            if not isinstance(node, ast.ExceptHandler) or node.type is None:
+                continue
+            if "Refusal" not in ast.dump(node.type):
+                continue
+            last = node.body[-1]
+            if not (isinstance(last, ast.Raise) and last.exc is None):
+                terminal.append(path.name)
+    assert set(terminal) == {"cli.py"}, f"terminal catch sites: {sorted(set(terminal))}"

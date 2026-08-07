@@ -1,8 +1,9 @@
 """The top-level runner. One invocation, one payload, one process.
 
-This is the **only** module permitted to catch a ``Refusal``: everywhere else,
-catching one would turn a control into a warning (family practice P11). Here,
-catching means recording the refusal in the ledger and exiting non-zero.
+Recording lives in `session.py`; this module owns argument handling, the
+human-facing output, and the exit status. It is the **only** module that
+catches a `Refusal` without re-raising it - everywhere else, a caught refusal
+must be re-raised, and the scrape enforces that (P11).
 
 Flow, and the ledger event at each step:
 
@@ -13,9 +14,9 @@ Flow, and the ledger event at each step:
     spend            -> grant.spent / refusal.*
     execute          -> refusal.unregistered_action  (0.1.0.0: always)
 
-In 0.1.0.0 the last step always refuses, because the registry is empty. That
-is the version's demonstration, not its limitation: a human can watch the
-whole loop run and end in a typed refusal with nothing written anywhere.
+In 0.1.0.0 and 0.2.0.0 the last step always refuses, because the registry is
+empty. That is the version's demonstration, not its limitation: a human can
+watch the whole loop run and end in a typed refusal with nothing written.
 
 Does NOT:
   - retry, resume, or reconcile. Execution semantics arrive with the first
@@ -33,11 +34,10 @@ from pathlib import Path
 from typing import TextIO
 
 from . import approve as approval
-from . import consumer, ledger, proposal, proposer
 from .errors import Refusal
-from .grant import GrantIssuer
+from .ledger import Ledger
 from .registry import PRODUCTION_REGISTRY, Registry
-from .types import MAX_PROPOSALS_PER_RUN
+from .session import Session
 
 
 def run(
@@ -48,97 +48,46 @@ def run(
     registry: Registry = PRODUCTION_REGISTRY,
     clock: Callable[[], float] = time.monotonic,
 ) -> int:
-    book = ledger.Ledger(ledger_path)
-    book.append(
-        "run.started",
-        payload=str(payload_path),
-        registered_actions=list(registry.actions()),
-        budget=MAX_PROPOSALS_PER_RUN,
-    )
+    session = Session(Ledger(ledger_path), clock=clock, registry=registry)
+    session.started(str(payload_path))
 
     try:
-        bundle = consumer.parse(payload_path.read_bytes())
+        bundle = session.consume(payload_path.read_bytes(), str(payload_path))
     except Refusal as exc:
-        book.append(exc.event, **exc.details, message=exc.message)
         out.write(f"refused: {exc.message}\n")
+        session.finished(2)
         return 2
 
-    book.append(
-        "payload.accepted",
-        verdicts=len(bundle.verdicts),
-        review_lane=len(bundle.review_lane),
-        notices=len(bundle.notices),
-    )
-    for cve in bundle.collisions:
-        book.append("review_lane.collision", cve_id=cve)
-    for cve in bundle.truncated:
-        book.append("prose.truncated", cve_id=cve)
-
-    proposals = proposer.propose(bundle)
+    proposals = session.propose(bundle)
     if proposals.over_budget:
-        book.append(
-            "refusal.budget",
-            budget=proposals.budget,
-            excluded=list(proposals.excluded),
-            message="proposal budget exhausted; excluded ids listed",
-        )
         out.write(
             f"budget {proposals.budget} exhausted; "
             f"{len(proposals.excluded)} verdict(s) not proposed\n"
         )
 
-    issuer = GrantIssuer(clock=clock)
     exit_code = 0
-
     for item in proposals.proposals:
-        rendered = proposal.prepare(item)
         created_at = clock()
-        book.append(
-            "proposal.created",
-            action=item.action, target=item.target, verdict=item.verdict,
-        )
-        book.append(
-            "proposal.rendered",
-            action_hash=rendered.action_hash, byte_length=len(rendered.canonical_bytes),
-        )
+        rendered = session.render(item)
 
         decision = approval.decide(
             rendered, age_seconds=clock() - created_at, out=out, read_line=read_line
         )
-        book.append(
-            "approval.decided",
-            approved=decision.approved,
-            action_hash=decision.action_hash,
-            approver_claim=decision.approver_claim,
-            authenticated=decision.authenticated,
-        )
+        session.decided(decision)
         if not decision.approved:
             out.write("declined; nothing was authorised\n")
             continue
 
-        grant = issuer.issue(decision, rendered)
-        book.append(
-            "grant.issued",
-            nonce=grant.nonce, action_hash=grant.action_hash,
-            target=grant.target, ttl_seconds=round(grant.deadline - grant.issued_at, 3),
-        )
-
         try:
-            spent = issuer.spend(grant, rendered.action_hash, item.target)
-            book.append("grant.spent", nonce=spent.grant.nonce)
-            registry.require(item.action)
+            grant = session.issue(decision, rendered)
+            spent = session.spend(grant, rendered.action_hash, item.target)
+            session.execute(spent, item.action)
         except Refusal as exc:
-            book.append(exc.event, **exc.details, message=exc.message)
             out.write(f"refused: {exc.message}\n")
             exit_code = 3
             continue
 
-        # Unreachable in 0.1.0.0: the registry is empty, so require() above
-        # always refuses. Left explicit rather than omitted so the shape of
-        # 0.3.0.0 is visible in review.
-        book.append("capability.absent", action=item.action)
-
-    book.append("run.finished", exit_code=exit_code)
+    session.finished(exit_code)
     return exit_code
 
 
