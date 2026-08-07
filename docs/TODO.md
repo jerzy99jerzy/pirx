@@ -19,6 +19,10 @@ than parked.
 | T2 | Same for README's Rappaport-to-Pirx flow diagram | 0.4.0.0 | **done** |
 | T3 | Split `gh pr create` from `gh pr checks --watch`; record `--auto` as the answer to a not-yet-mergeable PR and `--admin` as forbidden | 0.4.0.0 | **done** |
 | T4 | Contract test for the Jira adapter against a recorded response corpus | when a Jira schema change breaks production unnoticed | open, trigger-owned (review F15) |
+| T5 | Paginate `find_comment` | first observed false negative from reconciliation, or first adapter with a smaller page size | open, trigger-owned (F30) |
+| T6 | Vendor the real WORKFLOW.md, or leave section 8 as the convention record | exchange entry PX-0001 | open (F32) |
+| T7 | Confirm or strike the five `[cve-digest: confirm]` provenance lines in FAMILY.md | exchange entry PX-0001 | open (F35) |
+| T8 | `pirx verify <ledger>` subcommand | 0.5.0.0 | open (0.4.0.1 review, improvement 1) |
 
 ## Rejected
 

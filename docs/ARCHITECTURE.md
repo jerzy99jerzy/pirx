@@ -1,7 +1,7 @@
 # Pirx - architecture assumptions, sprints 0.1.0.0 through 0.3.0.0
 
 ```
-Document:   docs/ARCHITECTURE.md, version 1.1
+Document:   docs/ARCHITECTURE.md, version 1.2
 Refers to:  PIRX-PROJECT-BRIEF.md v1.2 (thesis, threat model PT1-PT14,
             version plan), FAMILY.md v1.0 (practices P1-P13)
 Covers:     sprint 0.1.0.0 (trust loop), 0.2.0.0 (hostile-agent harness),
@@ -283,7 +283,7 @@ each naming the PT row it exercises. Initial catalogue:
 | target swap | PT5 | grant for A, spend against B |
 | byte flip | PT6 | mutate one byte of rendered proposal, assert hash mismatch |
 | ungranted write | PT7 | call a capability with a forged object that is not a `SpentGrant`; plus the static scrape as the compile-time twin |
-| cross-run authority | PT8 | serialise a grant, restart interpreter, assert it is unusable (monotonic deadline is meaningless, spent-set empty is irrelevant because hash preimage cannot be reproduced without the run's proposal) |
+| cross-run authority | PT8 | reuse a grant against a fresh issuer and assert it **succeeds**, documenting the residual. The 1.0 sketch said "assert it is unusable" and reasoned that the hash preimage could not be reproduced - which is wrong, because rendering is deterministic by design (A14). The delivered A11 shows the opposite and is correct; this row was amended to match rather than the test to match the row (F33) |
 | ledger edit | PT9 | rewrite a middle record, assert verifier reports the seam |
 | review-lane smuggle | PT11 | same id in both lists, assert zero proposals and a collision event |
 | budget flood | PT13 | budget+N verdicts, assert order-preserving refusal naming N ids |
@@ -416,3 +416,4 @@ a version bump, not a discussion in a pull request.
 | A13 | Action names come from the code constant `KNOWN_INTENTS`; registry membership is checked at spend, not at proposal construction | Amends 3.3, which specified an enum over registry keys: with the registry empty (the defining property of 0.1.0.0), that enum is empty and the brief's end-to-end demonstration is unbuildable. PT2 unaffected - an action name still never derives from prose. Owed since review finding F3 |
 | A14 | The untrusted-prose fence tag is deterministic (incrementing until absent from the content), never random | Inside the hash preimage a random boundary destroys "same input, same bytes"; the approval frame stays random because it lives outside the preimage. Content is indented so no enclosed line can begin with the fence base (F18) |
 | A15 | Every ledger append flushes and fsyncs before returning | At-most-once leans on `capability.attempt` being durable before the adapter runs; a record in a page cache when the host dies never happened (F24) |
+| A16 | A16 supersedes the 4.2 cross-run sketch: an in-process spent-set is per-process and A11 documents that, rather than claiming a defence the design does not provide (F33) |

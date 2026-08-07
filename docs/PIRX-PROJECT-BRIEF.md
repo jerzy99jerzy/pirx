@@ -11,7 +11,8 @@ Repository:     github.com/jerzy99jerzy/pirx   (to be created)
 Consumes:       cve-digest.verdict/1
 Produced by:    github.com/jerzy99jerzy/cve-digest (display codename Rappaport)
 Language:       Python 3.14, English throughout
-Workflow:       inherits WORKFLOW.md from cve-digest verbatim, v1.4
+Workflow:       conventions listed in section 8, adopted from cve-digest
+                practice. No WORKFLOW.md is vendored here (see F32)
 Versioning:     0.MAJOR.FEATURE.MICRO, same four-segment scheme
 Status:         greenfield, nothing written
 ```
@@ -408,6 +409,8 @@ Adopted verbatim, because they were paid for in incidents:
   names, auto-merge as a repository setting.
 - Local gate before push: ruff, mypy, `python -m pytest`, docs audit.
 - A verification and the action it guards never share a pasted block.
+- A docs audit runs in the gate (`tools/docs_audit.py`), checking pin
+  consistency, review coverage, catalogue count, and PT numbering.
 - Explicit file lists; never `git add -A`.
 - Docstrings register what a module does **not** do, with reasoning.
 - Claims are measured, not asserted. A number in the documentation is either
