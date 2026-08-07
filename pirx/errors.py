@@ -91,6 +91,17 @@ class UnregisteredActionRefusal(Refusal):
     event = "refusal.unregistered_action"
 
 
+class AdapterUnavailableRefusal(Refusal):
+    """A registered capability with no adapter wired, or an unhealthy one.
+
+    Refusing here rather than at import time means a clone with no
+    credentials runs the whole loop and stops at the write, which is the
+    safe default and also the honest demonstration.
+    """
+
+    event = "refusal.adapter_unavailable"
+
+
 # --- Ledger (PT9) -----------------------------------------------------------
 
 

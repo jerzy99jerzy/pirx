@@ -1,10 +1,15 @@
 """The capability registry: the complete write surface, as data.
 
-**Empty in 0.1.0.0.** ``PRODUCTION_REGISTRY`` holds zero entries, and a test
-asserts it. This is not a stub awaiting content: the empty registry plus the
-import-allowlist scrape is how the property "nothing can write anything" is
-established *before* the first capability exists rather than retrofitted
-around one (family practice P3).
+**One entry from 0.3.0.0.** ``PRODUCTION_REGISTRY`` held zero entries through
+0.1.0.0 and 0.2.0.0 so that "nothing can write anything" was established, and
+attacked by the harness, *before* the first capability existed rather than
+retrofitted around one (family practice P3). The first entry is
+``ticket.comment``: the smallest genuine write - visible, reversible, and
+useless to an attacker who obtains it.
+
+The registry names actions; it does not hold adapters. Wiring an adapter is
+the runner's job, where it is visible, and a registered action with no
+adapter refuses rather than falling back to anything.
 
 Does NOT:
   - load entries from configuration, environment, plugins, or entry points.
@@ -36,6 +41,9 @@ KNOWN_INTENTS: tuple[str, ...] = ("ticket.comment",)
 class CapabilityEntry:
     action: str
     description: str
+    #: Which adapter family this action needs. Data, not a callable: the
+    #: registry stays inert and inspectable.
+    adapter: str
 
 
 class Registry:
@@ -63,5 +71,17 @@ class Registry:
         return entry
 
 
-#: The write surface of this version. Zero entries, by design and by test.
-PRODUCTION_REGISTRY = Registry({})
+#: The write surface of this version. Every entry is reviewed like the code
+#: change it is; there is no path that adds one at runtime.
+PRODUCTION_REGISTRY = Registry(
+    {
+        "ticket.comment": CapabilityEntry(
+            action="ticket.comment",
+            description=(
+                "Append a comment to an existing ticket. Does not create, "
+                "transition, assign, or close anything."
+            ),
+            adapter="ticket",
+        )
+    }
+)

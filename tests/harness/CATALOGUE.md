@@ -30,12 +30,17 @@ future owner, not silent scope (P12).
 | A07 | Target swap: grant for A, spend against B | PT5 | `refusal.target_mismatch` | `test_a07_target_swap` |
 | A08 | Byte flip: mutate one byte of the rendered proposal | PT6 | `refusal.hash_mismatch` | `test_a08_byte_flip` |
 | A09 | Frame forgery: prose carrying a closing frame marker | PT6 | framed region intact | `test_a09_frame_forgery` |
-| A10 | Ungranted write: reach a capability without a `SpentGrant` | PT7 | `refusal.unregistered_action` | `test_a10_ungranted_execution` |
+| A10 | Unregistered action: valid spent grant, action outside the registry | PT7 | `refusal.unregistered_action` | `test_a10_unregistered_action_cannot_execute` |
 | A11 | Cross-run authority: reuse a grant against a fresh issuer | PT8 | documented residual | `test_a11_cross_run_authority_residual` |
 | A12 | Ledger edit: rewrite a middle record | PT9 | `LedgerChainRefusal` | `test_a12_ledger_edit` |
 | A13 | Review-lane smuggle: same id in both lists | PT11 | `review_lane.collision`, zero proposals | `test_a13_review_lane_smuggle` |
 | A14 | Budget flood: budget+N verdicts | PT13 | `refusal.budget` naming N ids | `test_a14_budget_flood` |
 | A15 | Plausible forgery: perfectly valid payload, hostile content | PT14 | **succeeds, by design** | `test_a15_plausible_forgery_is_accepted` |
+| A16 | Registered action, no adapter wired | PT7 | `refusal.adapter_unavailable` | `test_a16_registered_action_without_adapter_refuses` |
+| A17 | Intent ordering: attempt must precede the write | PT9 | `capability.attempt` before `capability.result` | `test_a17_intent_written_before_the_write` |
+| A18 | Target system refuses the write | PT3 | unsuccessful result, grant **not** refunded | `test_a18_target_failure_is_not_a_refusal` |
+| A19 | Crash after the write landed | PT9 | `capability.outcome_reconciled`, no re-execution | `test_a19_crash_after_write_is_reconcilable_never_retried` |
+| A20 | Attempt recorded, write never landed | PT9 | `capability.outcome_unknown`, no re-execution | `test_a20_lost_write_is_reported_as_not_landed` |
 
 ## A15 is the most important row, precisely because it passes
 
@@ -45,6 +50,16 @@ authenticated, which is exactly what PT14 says it does. The day PT14 gains a
 control - the first networked transport - this test flips from asserting
 acceptance to asserting refusal, and a future reader who deletes it instead
 must explain why.
+
+## A18-A20 exist because at-most-once has a cost, and costs get forgotten
+
+Spending the grant before the write means an action can silently not happen.
+A19 and A20 are the two halves of that: the write landed and nobody recorded
+it, or the write never landed at all. In both, reconciliation **reports and
+stops** - it never re-executes, because the grant is spent and an automatic
+retry carrying authority across a crash is PT8 wearing a helpful face. A18
+pins the related rule: the far side saying no is not a refusal by Pirx, and
+it does not refund authority.
 
 ## A11 likewise documents rather than defends
 

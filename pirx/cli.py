@@ -27,6 +27,7 @@ Does NOT:
 
 from __future__ import annotations
 
+import os
 import sys
 import time
 from collections.abc import Callable, Sequence
@@ -34,8 +35,11 @@ from pathlib import Path
 from typing import TextIO
 
 from . import approve as approval
+from .adapters.jira import JiraAdapter, JiraCredentials, UrllibTransport
+from .adapters.protocol import TicketAdapter
 from .errors import Refusal
 from .ledger import Ledger
+from .reconcile import reconcile
 from .registry import PRODUCTION_REGISTRY, Registry
 from .session import Session
 
@@ -47,8 +51,11 @@ def run(
     read_line: Callable[[], str],
     registry: Registry = PRODUCTION_REGISTRY,
     clock: Callable[[], float] = time.monotonic,
+    adapter: TicketAdapter | None = None,
 ) -> int:
-    session = Session(Ledger(ledger_path), clock=clock, registry=registry)
+    session = Session(
+        Ledger(ledger_path), clock=clock, registry=registry, adapter=adapter
+    )
     session.started(str(payload_path))
 
     try:
@@ -81,7 +88,12 @@ def run(
         try:
             grant = session.issue(decision, rendered)
             spent = session.spend(grant, rendered.action_hash, item.target)
-            session.execute(spent, item.action)
+            outcome = session.execute(spent, rendered)
+            if outcome.succeeded:
+                out.write(f"executed: {outcome.detail}\n")
+            else:
+                out.write(f"target system refused: {outcome.detail}\n")
+                exit_code = 4
         except Refusal as exc:
             out.write(f"refused: {exc.message}\n")
             exit_code = 3
@@ -91,14 +103,66 @@ def run(
     return exit_code
 
 
+USAGE = (
+    "usage:\n"
+    "  pirx run <verdict.json> [ledger.jsonl]\n"
+    "  pirx reconcile <ledger.jsonl>\n"
+    "\n"
+    "Credentials for the ticket adapter come from the environment:\n"
+    "  PIRX_JIRA_BASE_URL, PIRX_JIRA_EMAIL, PIRX_JIRA_TOKEN\n"
+    "With none set, the run stops at the write with a typed refusal and\n"
+    "nothing is written anywhere.\n"
+)
+
+
+def adapter_from_environment() -> TicketAdapter | None:
+    """Wire an adapter only if fully configured. No partial credentials, no
+    prompting, no discovery - an adapter that assembles itself from whatever
+    it can find is a write path nobody reviewed."""
+    base = os.environ.get("PIRX_JIRA_BASE_URL")
+    email = os.environ.get("PIRX_JIRA_EMAIL")
+    token = os.environ.get("PIRX_JIRA_TOKEN")
+    if not (base and email and token):
+        return None
+    return JiraAdapter(
+        JiraCredentials(base_url=base, email=email, api_token=token),
+        UrllibTransport(),
+    )
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
-    if len(args) not in (1, 2):
-        sys.stderr.write("usage: pirx run <verdict.json> [ledger.jsonl]\n")
+    if not args:
+        sys.stderr.write(USAGE)
         return 64
-    payload = Path(args[0])
-    book = Path(args[1]) if len(args) == 2 else Path("pirx-ledger.jsonl")
-    return run(payload, book, sys.stdout, sys.stdin.readline)
+
+    command, rest = args[0], args[1:]
+
+    if command == "reconcile":
+        if len(rest) != 1:
+            sys.stderr.write(USAGE)
+            return 64
+        adapter = adapter_from_environment()
+        if adapter is None:
+            sys.stderr.write("reconcile needs a configured adapter\n")
+            return 78
+        for line in reconcile(Path(rest[0]), adapter):
+            sys.stdout.write(line + "\n")
+        return 0
+
+    if command == "run":
+        if len(rest) not in (1, 2):
+            sys.stderr.write(USAGE)
+            return 64
+        payload = Path(rest[0])
+        book = Path(rest[1]) if len(rest) == 2 else Path("pirx-ledger.jsonl")
+        return run(
+            payload, book, sys.stdout, sys.stdin.readline,
+            adapter=adapter_from_environment(),
+        )
+
+    sys.stderr.write(USAGE)
+    return 64
 
 
 if __name__ == "__main__":  # pragma: no cover
