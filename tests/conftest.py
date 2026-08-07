@@ -1,25 +1,14 @@
-"""Shared fixtures.
-
-The test-only registry lives here so ``PRODUCTION_REGISTRY`` is never mutated:
-the empty production registry is the property under test, and a fixture that
-reached into it would dissolve the thing it verifies.
-"""
+"""Shared fixtures and builders."""
 
 from __future__ import annotations
 
 import json
 from typing import Any
 
-import pytest
-
-from pirx.registry import CapabilityEntry, Registry
-
+#: An action name that must never appear in the production registry; the
+#: harness asserts on it. Kept after the fixture that once used it was
+#: removed as dead (F28).
 TEST_ACTION = "test.noop"
-
-
-@pytest.fixture
-def test_registry() -> Registry:
-    return Registry({TEST_ACTION: CapabilityEntry(TEST_ACTION, "test only")})
 
 
 def verdict(cve: str = "CVE-2026-1001", **over: Any) -> dict[str, Any]:

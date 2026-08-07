@@ -70,7 +70,15 @@ def run(
         session.finished(2)
         return 2
 
-    proposals = session.propose(bundle)
+    try:
+        proposals = session.propose(bundle)
+    except Refusal as exc:
+        # A model refusal lands here. The ledger already holds the event via
+        # the session; this path exists so the run still ends honestly - with
+        # run.finished and an exit status - instead of a traceback (F23).
+        out.write(f"refused: {exc.message}\n")
+        session.finished(2)
+        return 2
     if proposals.over_budget:
         out.write(
             f"budget {proposals.budget} exhausted; "

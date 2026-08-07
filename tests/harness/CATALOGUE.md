@@ -50,6 +50,7 @@ future owner, not silent scope (P12).
 | A27 | Which mind proposed is recorded either way | PT6 | `proposer.mode` | `test_a27_the_ledger_records_which_mind_proposed` |
 | A28 | Model prose forges its own fence markers | PT6 | fence tag increments; content indented | `test_a28_model_prose_cannot_forge_or_escape_its_fence` |
 | A29 | Fence must stay deterministic | PT6 | identical bytes for identical input | `test_a29_fence_is_deterministic_for_identical_input` |
+| A30 | Model refusal mid-run | PT2 | `refusal.model`, then `run.finished`; exit 2, no traceback | `test_a30_model_refusal_leaves_an_honest_run_record` |
 
 ## A21-A29 exist because 0.4.0.0 made PT2 and PT6 live
 

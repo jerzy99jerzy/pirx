@@ -86,6 +86,20 @@ def test_tail_truncation_is_NOT_detected(tmp_path: Path) -> None:
     assert ledger.verify(path) == 3
 
 
+def test_every_append_is_fsynced(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The durability claim is measured, not asserted: at-most-once leans on
+    `capability.attempt` being on disk before the adapter runs, so the fsync
+    is load-bearing, not hygiene (F24)."""
+    synced: list[int] = []
+    monkeypatch.setattr(ledger.os, "fsync", synced.append)
+    book = ledger.Ledger(tmp_path / "l.jsonl")
+    book.append("test.event", index=0)
+    book.append("test.event", index=1)
+    assert len(synced) == 2
+
+
 def test_reopening_continues_the_chain(tmp_path: Path) -> None:
     path = tmp_path / "l.jsonl"
     seeded(path, 2)

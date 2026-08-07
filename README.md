@@ -98,6 +98,7 @@ flowchart LR
     R -->|"cve-digest.verdict/1"| P
     P -->|"one approved action"| T
     P -.->|"nothing. ever."| R
+    classDef default fill:#161b22,stroke:#7d8590,color:#e6edf3
 ```
 
 Nothing flows back toward the ranking system - not at runtime, and not
@@ -183,7 +184,7 @@ threat wearing a helpful face.
 | Code | Meaning |
 |---|---|
 | 0 | ran to completion; every approved action executed |
-| 2 | payload refused at the boundary |
+| 2 | refused before any approval: payload at the boundary, or the model outside its contract |
 | 3 | a refusal fired inside the loop (expired grant, unregistered action, no adapter) |
 | 4 | the target system refused a write; authority was consumed and is not refunded |
 | 64 | usage error |
@@ -212,6 +213,8 @@ flowchart TB
     AP -.-> L
     G -.-> L
     CAP -.-> L
+    classDef default fill:#161b22,stroke:#7d8590,color:#e6edf3
+    style L fill:#0b1f2e,stroke:#34d0ff,color:#a9e7ff
 ```
 
 Dotted lines into the ledger are events. Every step writes to it; **no step
@@ -245,8 +248,8 @@ Full detail in `docs/ARCHITECTURE.md`.
 
 ## The harness
 
-`tests/harness/` runs twenty-nine scripted attacks in CI on every push, one
-per threat-model row. The pass criterion is uniform: the attack ends in the
+`tests/harness/` runs thirty scripted attacks in CI on every push, one per
+threat-model row. The pass criterion is uniform: the attack ends in the
 correct typed refusal **and** that refusal appears in the ledger the product
 wrote. Asserting on the exception alone would test the code path; asserting
 on the ledger tests the deliverable.
@@ -332,10 +335,11 @@ This project's own rule is that a number appears in documentation only when
 the code produced it. Accordingly:
 
 - Gated on Python 3.14.6 (macOS) and in CI on 3.14: ruff clean, mypy strict
-  clean, **136 tests passing**, of which 29 are harness attacks.
+  clean, **138 tests passing**, of which 30 are harness attacks.
 - The ledger chain detects record edits and interior gaps. It does **not**
   detect truncation of the tail; a test asserts that limitation so nobody
-  claims otherwise.
+  claims otherwise. Every append is flushed and fsynced, and a test measures
+  the fsync rather than trusting the docstring.
 - The import-allowlist scrape is a regression tripwire for the honest
   mistake, not a proof: `getattr`, `importlib`, or a wrapper library defeats
   any static check, and the test says so in its own docstring.
