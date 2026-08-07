@@ -22,11 +22,15 @@ refusal, bounds, enums, malformed ids, parse-time truncation).
 **Control.** The proposer selects from a code-constant intent list; action
 parameters come from deterministic fields, never from prose. Prose travels as
 `UntrustedProse`, which cannot occupy a parameter position (constructor
-rejects it) and cannot be interpolated implicitly. In 0.1.0.0 there is no
-model in the loop at all, so the threat has nothing to attack.
-**Lives in** `types.py`, `proposal.py`, `proposer.py`. **Measured by**
-`test_proposal.py::test_prose_in_a_parameter_position_is_rejected`,
-`test_consumer.py::test_prose_never_becomes_a_plain_string`.
+rejects it) and cannot be interpolated implicitly. From 0.4.0.0 a model may
+select the action - by exact string membership in the registry, no
+normalisation - and write a rationale; its reply is validated as hostile
+input, an out-of-contract reply refuses without falling back, and nothing
+under `model/` may import grant, capability, ledger, or session machinery.
+**Lives in** `types.py`, `proposal.py`, `proposer.py`, `model/client.py`.
+**Measured by** attacks A21-A26 and A30 in the harness, plus
+`test_proposal.py::test_prose_in_a_parameter_position_is_rejected` and
+`test_no_capabilities.py::test_the_model_boundary_cannot_reach_authority`.
 
 ## PT3 - Approval reuse: a valid grant spent on a second action
 
@@ -59,12 +63,17 @@ spend.
 **Control.** One render function produces the canonical bytes; the same bytes
 are the hash preimage; the approval surface writes them verbatim inside a
 frame whose boundary is 128 random bits generated per presentation, so
-producer prose cannot forge the frame's end. Found and fixed during 0.1.0.0
-(review finding F1): a fixed frame marker was forgeable by prose.
+producer prose cannot forge the frame's end (review finding F1). Inside the
+preimage, untrusted prose sits in a deterministic incrementing fence labelled
+with its origin (`producer` / `pirx-model`), content indented so no enclosed
+line can begin with the fence base (F18) - a random boundary there would
+destroy determinism, so the tag derives from content instead. Which mind
+proposed is itself recorded per run (`proposer.mode`).
 **Lives in** `proposal.py`, `approve.py`. **Measured by**
 `test_approve.py::test_stdout_contains_the_hash_preimage_byte_for_byte`,
 `test_framed_region_survives_hostile_prose`,
-`test_proposal.py::test_prose_cannot_forge_a_field_line`.
+`test_proposal.py::test_prose_cannot_forge_a_field_line`, and attacks
+A27-A29 in the harness.
 
 ## PT7 - Capability reachable without a grant
 

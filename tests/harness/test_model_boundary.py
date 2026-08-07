@@ -206,6 +206,33 @@ def test_a28_model_prose_cannot_forge_or_escape_its_fence() -> None:
     assert any("origin=producer" in ln for ln in opens)
 
 
+def test_a30_model_refusal_leaves_an_honest_run_record(tmp_path: Path) -> None:
+    """A model refusal mid-run must not become a traceback. The run ends with
+    `run.finished` and a non-zero exit, and the refusal is in the ledger -
+    an audit trail that stops mid-sentence is worse than one that says why
+    it stopped (F23)."""
+    import io
+
+    from pirx import cli
+
+    payload = tmp_path / "v.json"
+    payload.write_bytes(bundle())
+    book = tmp_path / "ledger.jsonl"
+    model = ScriptedModel(
+        raises=ModelRefusal("model call failed", status=503, cve_id="X")
+    )
+    out = io.StringIO()
+    code = cli.run(
+        payload, book, out, lambda: "decline\n",
+        model=model,  # type: ignore[arg-type]
+    )
+    assert code == 2
+    events = [json.loads(line)["event"] for line in book.read_text().splitlines()]
+    assert "refusal.model" in events
+    assert events[-1] == "run.finished"
+    assert "refused: model call failed" in out.getvalue()
+
+
 def test_a29_fence_is_deterministic_for_identical_input() -> None:
     """The tag is derived from content, not randomness, so the hash preimage
     stays stable - the approval surface's random frame cannot be used here

@@ -6,7 +6,12 @@ fresh ledger from one whose head was replaced (PT9). The verifier ships in
 this module because a chain nobody checks is a field, not a control.
 
 Intent events are written **before** the action they guard as well as after,
-so an action with no preceding event is itself evidence.
+so an action with no preceding event is itself evidence. Every append is
+flushed and fsynced before returning: the at-most-once story leans on
+``capability.attempt`` being durable *before* the adapter is called, and a
+record sitting in a page cache when the host dies is a record that never
+happened (F24). The cost is a few syscalls per event on a pipeline whose
+bottleneck is a human reading a terminal.
 
 Does NOT:
   - rotate, compress, encrypt, or ship anywhere. Local file. Tail truncation
@@ -23,6 +28,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -94,6 +100,8 @@ class Ledger:
         line = _canonical(record.as_dict())
         with self.path.open("ab") as handle:
             handle.write(line + b"\n")
+            handle.flush()
+            os.fsync(handle.fileno())
         self._seq += 1
         self._head = _digest(line)
         return record

@@ -1,7 +1,7 @@
 # Pirx - architecture assumptions, sprints 0.1.0.0 through 0.3.0.0
 
 ```
-Document:   docs/ARCHITECTURE.md, version 1.0
+Document:   docs/ARCHITECTURE.md, version 1.1
 Refers to:  PIRX-PROJECT-BRIEF.md v1.2 (thesis, threat model PT1-PT14,
             version plan), FAMILY.md v1.0 (practices P1-P13)
 Covers:     sprint 0.1.0.0 (trust loop), 0.2.0.0 (hostile-agent harness),
@@ -62,6 +62,8 @@ flowchart LR
     AP -.-> L
     G -.-> L
     CAP -.-> L
+    classDef default fill:#161b22,stroke:#7d8590,color:#e6edf3
+    style L fill:#0b1f2e,stroke:#34d0ff,color:#a9e7ff
 ```
 
 Four zones, and the boundaries between them are the architecture:
@@ -411,3 +413,6 @@ a version bump, not a discussion in a pull request.
 | A10 | PT14 acceptance is an executable, passing attack case | An accepted risk should cost a deliberate test deletion to forget |
 | A11 | Idempotency key embedded in comment body as structured trailer | Reconciliation works on ticketing systems without native idempotency |
 | A12 | No grant refund on failed execution | Authority re-issue is a human decision on ledger evidence; automatic retry is PT8 by another name |
+| A13 | Action names come from the code constant `KNOWN_INTENTS`; registry membership is checked at spend, not at proposal construction | Amends 3.3, which specified an enum over registry keys: with the registry empty (the defining property of 0.1.0.0), that enum is empty and the brief's end-to-end demonstration is unbuildable. PT2 unaffected - an action name still never derives from prose. Owed since review finding F3 |
+| A14 | The untrusted-prose fence tag is deterministic (incrementing until absent from the content), never random | Inside the hash preimage a random boundary destroys "same input, same bytes"; the approval frame stays random because it lives outside the preimage. Content is indented so no enclosed line can begin with the fence base (F18) |
+| A15 | Every ledger append flushes and fsyncs before returning | At-most-once leans on `capability.attempt` being durable before the adapter runs; a record in a page cache when the host dies never happened (F24) |
