@@ -276,8 +276,13 @@ measured control.
 ## Development
 
 ```bash
-ruff check . && mypy pirx && python -m pytest -q
+ruff check . && mypy pirx && python -m pytest -q && python tools/docs_audit.py
 ```
+
+The docs audit checks that `STATUS.json`'s pins match the versions documents
+declare, that every version README marks shipped has a review file, that the
+attack catalogue and its assertion agree, and that PT numbering has no gaps.
+It runs as a fourth CI job.
 
 Branch protection is active on `main` with `enforce_admins`, so every change
 goes through a pull request. The merge procedure, including what `strict`
@@ -305,6 +310,7 @@ dispositioned as fixed, accepted with reasons, or deferred.
 | `docs/MERGE-PROCEDURE.md` | Branch protection, rebase, tags |
 | `docs/FAMILY.md` | Vendored family practices and the human-carried exchange protocol |
 | `docs/TODO.md` | Small non-scope work, each row with a named owner |
+| `tools/docs_audit.py` | The documentation consistency check that runs in the gate |
 | `docs/reviews/` | Pre-push reviews, one per version, findings dispositioned |
 | `docs/exchange/` | Development-level exchange entries with the upstream project |
 | `tests/harness/CATALOGUE.md` | The attack catalogue |
@@ -335,7 +341,8 @@ This project's own rule is that a number appears in documentation only when
 the code produced it. Accordingly:
 
 - Gated on Python 3.14.6 (macOS) and in CI on 3.14: ruff clean, mypy strict
-  clean, **138 tests passing**, of which 30 are harness attacks.
+  clean, **140 tests passing**, of which 30 are harness attacks, plus a docs
+  audit that was itself verified by four mutants before being trusted.
 - The ledger chain detects record edits and interior gaps. It does **not**
   detect truncation of the tail; a test asserts that limitation so nobody
   claims otherwise. Every append is flushed and fsynced, and a test measures

@@ -1,0 +1,6 @@
+The exchange protocol (FAMILY.md section 3) needs this directory to exist
+before its first entry. Git does not track empty directories, so README
+listed a path that was not in the repository until this file (F34).
+
+First entry owed: PX-0001, a convention-amendment carrying FAMILY.md to
+cve-digest as its canonical home - the protocol tested on itself.

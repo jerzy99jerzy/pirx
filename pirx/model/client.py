@@ -42,6 +42,14 @@ from ..registry import KNOWN_INTENTS
 from ..types import MAX_PROSE_CHARS
 from .protocol import ModelProposal
 
+# Endpoint, the `x-api-key` header (not bearer auth), the required
+# `anthropic-version` header, the mandatory `max_tokens`, `system` as a
+# top-level parameter rather than a message role, and the `content` block
+# response shape were verified against Anthropic's published API
+# documentation on 2026-08-07. Not exercised against the live API: that gap
+# is named in review finding F15's sibling for this client, and the transport
+# seam exists so the request this module builds is measured regardless.
+
 #: Constants, not configuration (P6).
 REQUEST_TIMEOUT = 30.0
 MAX_TOKENS = 512

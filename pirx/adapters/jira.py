@@ -15,7 +15,25 @@ the comment body as a structured trailer, so `find_comment` can answer "did
 this land" by searching the issue's own comments. That makes reconciliation
 work on a system that offers no help.
 
+**Provenance of the API shape.** Endpoint, ADF body structure, and the v3
+requirement that `body` be a document rather than a string were verified
+against Atlassian's published REST v3 documentation on 2026-08-07. What
+remains untested is whether a live tenant accepts these requests (review
+finding F15); the shape itself is no longer a memory claim.
+
+**Known limitation, not a bug (F30).** `find_comment` reads one page of the
+issue's comments. Jira paginates that collection - default 50 - so on an
+issue with a long comment history, reconciliation can report "did NOT land"
+for a comment that landed. Accepted for now because the write surface is
+comments Pirx itself just created, so the target is near the tail; the honest
+consequence is that a false negative sends a human to issue a fresh grant for
+work already done, which is the safe direction to be wrong in. Trigger for
+fixing: the first reconciliation that reports a false negative, or the first
+adapter for a system with a smaller page size.
+
 Does NOT:
+  - paginate. See F30 above; one page, and the limitation is named rather
+    than hidden behind a loop nobody tested.
   - create, transition, close, or assign issues. Appending to an existing
     issue is the whole surface; a wider one would make Pirx a second, worse
     change-control system.
