@@ -1,0 +1,69 @@
+{
+  "schema": "cve-digest.verdict/1",
+  "verdicts": [
+    {
+      "cve_id": "CVE-2026-2100",
+      "priority": "P1",
+      "in_kev": true,
+      "epss": 0.9,
+      "cvss": 9.1,
+      "cvss_pending": false,
+      "estate_state": "present",
+      "vex_status": "affected",
+      "score": 94.2,
+      "triage_note": "Observed exploitation against edge appliances; asset class 0.",
+      "recommended_action": "Apply vendor fix or restrict inbound access.",
+      "nvd_url": "https://nvd.nist.gov/vuln/detail/CVE-2026-2100"
+    },
+    {
+      "cve_id": "CVE-2026-2101",
+      "priority": "P1",
+      "in_kev": true,
+      "epss": 0.7,
+      "cvss": 8.1,
+      "cvss_pending": false,
+      "estate_state": "present",
+      "vex_status": "affected",
+      "score": 91.0,
+      "triage_note": "Observed exploitation against edge appliances; asset class 1.",
+      "recommended_action": "Apply vendor fix or restrict inbound access.",
+      "nvd_url": "https://nvd.nist.gov/vuln/detail/CVE-2026-2101"
+    },
+    {
+      "cve_id": "CVE-2026-2102",
+      "priority": "P2",
+      "in_kev": false,
+      "epss": 0.5,
+      "cvss": 7.1,
+      "cvss_pending": false,
+      "estate_state": "present",
+      "vex_status": "affected",
+      "score": 68.5,
+      "triage_note": "Observed exploitation against edge appliances; asset class 2.",
+      "recommended_action": "Apply vendor fix or restrict inbound access.",
+      "nvd_url": "https://nvd.nist.gov/vuln/detail/CVE-2026-2102"
+    },
+    {
+      "cve_id": "CVE-2026-2103",
+      "priority": "P3",
+      "in_kev": false,
+      "epss": 0.3,
+      "cvss": null,
+      "cvss_pending": true,
+      "estate_state": "present",
+      "vex_status": "affected",
+      "score": 22.1,
+      "triage_note": "Observed exploitation against edge appliances; asset class 3.",
+      "recommended_action": "Apply vendor fix or restrict inbound access.",
+      "nvd_url": "https://nvd.nist.gov/vuln/detail/CVE-2026-2103"
+    }
+  ],
+  "review_lane": [
+    {
+      "cve_id": "CVE-2026-2999"
+    }
+  ],
+  "notices": [
+    "enrichment degraded: EPSS feed stale by 6h"
+  ]
+}
