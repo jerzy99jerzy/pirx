@@ -45,12 +45,21 @@ rather than parked.
   status checks. The protection on `main` requires four - `ruff`, `mypy`,
   `pytest`, `docs-audit` - verified against the API during the 0.6.0.0 push.
   The document is stale; the setting is correct.
-- [~] **exchange entry PX-0001** carries four convergence items across the
-  family: `docs/` filename casing (propose accept-as-is), the codename
-  blockquote (applied here), the TODO format (applied here), WORKFLOW.md
-  vendoring (F32), and the five `[cve-digest: confirm]` provenance lines
-  (F35). Entry authored at `docs/exchange/PX-0001.md`; awaiting the
-  cve-digest mirror.
+- [~] **exchange entry PX-0001** carried to cve-digest 2026-08-08. Resolved
+  on the way: all five `[cve-digest: confirm]` provenance lines (four
+  confirmed in code, P11's attribution struck as an over-interpretation), and
+  WORKFLOW.md confirmed to exist upstream at 1.6. **Two decisions now sit with
+  cve-digest**: whether to adopt the `Trigger-owned` TODO subsection, and how
+  to resolve FAMILY.md's canonical home (see below). Awaiting the mirror's
+  disposition.
+- [ ] **PX-0001 item 5, owner's decision** FAMILY.md declared cve-digest its
+  canonical home; no FAMILY.md exists there, and no `docs/exchange/` either.
+  The header no longer asserts it. Resolve by creating the canonical copy
+  upstream (recommended) or by naming Pirx the home - either is fine, the
+  previous state was not.
+- [ ] **PX-0001 item 6, owner's decision** Vendor cve-digest's WORKFLOW.md
+  (confirmed at doc version 1.6) verbatim with the version pinned, or state in
+  brief section 8 that Pirx deliberately does not carry it (F32).
 - [ ] **first version running the gate on Windows** The Windows identity
   launcher. Research is done and shipped as `docs/IDENTITY-WINDOWS.md`; the
   code is deliberately not written ahead of it, because the research
