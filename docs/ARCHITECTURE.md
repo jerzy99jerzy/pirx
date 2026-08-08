@@ -6,7 +6,7 @@
 > word.
 
 ```
-Document:   docs/ARCHITECTURE.md, version 2.1
+Document:   docs/ARCHITECTURE.md, version 2.2
 Refers to:  PIRX-PROJECT-BRIEF.md v1.5 (thesis, threat model PT1-PT20,
             version plan), FAMILY.md v1.0 (practices P1-P13),
             PIRX-GATE-DESIGN.md v1.1 (0.5.0.0-0.8.0.0 direction)
@@ -542,19 +542,27 @@ stored constructor argument, never through a shell.
 
 ### 5D.2 The gate's data path
 
-```
-agent host --tools/call--> gate
-    parse as hostile input        protocol.py   (version enumerated, PT1)
-    headers vs body               protocol.py   (PT20: body is authoritative)
-    ungated tool                  -> forward verbatim, gate.forwarded_ungated
-    gated tool
-        tool-definition fingerprint vs reviewed hash  (PT16)
-        render canonical proposal (adapter #2)
-        write pending file        -> gate.pending
-        grant present?
-            no  -> MRTR poll ticket, gate.awaiting_approval
-            yes -> verify MAC, coverage, target, deadline; burn nonce
-                   forward the ORIGINAL bytes, gate.forwarded_granted
+```mermaid
+flowchart TD
+    IN["agent host: tools/call"] --> PARSE["parse as hostile input<br/><i>protocol.py - version enumerated (PT1)</i>"]
+    PARSE --> HDR{"headers agree<br/>with the body?"}
+    HDR -->|"no"| REF1["refusal.header_mismatch<br/><i>PT20: the body is authoritative</i>"]
+    HDR -->|"yes"| GATED{"tool in the<br/>gated registry?"}
+    GATED -->|"no"| FWD1["forward verbatim<br/><i>gate.forwarded_ungated</i>"]
+    GATED -->|"yes"| DRIFT{"definition matches<br/>the reviewed hash?"}
+    DRIFT -->|"no"| REF2["refusal.tool_definition_drift<br/><i>PT16</i>"]
+    DRIFT -->|"yes"| RENDER["render canonical proposal<br/><i>adapter #2</i>"]
+    RENDER --> PEND["write pending file<br/><i>gate.pending</i>"]
+    PEND --> HAS{"grant covering<br/>these bytes?"}
+    HAS -->|"no"| TICKET["MRTR poll ticket<br/><i>gate.awaiting_approval</i>"]
+    HAS -->|"yes"| SPEND["verify MAC, coverage,<br/>target, deadline; burn nonce"]
+    SPEND --> FWD2["forward the ORIGINAL bytes<br/><i>gate.forwarded_granted</i>"]
+
+    classDef default fill:#161b22,stroke:#7d8590,color:#e6edf3
+    classDef refusal fill:#2e1a1a,stroke:#f7768e,color:#f4c1c9
+    classDef pass fill:#1f2b1f,stroke:#3ddc84,color:#a9f0c6
+    class REF1,REF2 refusal
+    class FWD1,FWD2 pass
 ```
 
 Three rules make this the design rather than an implementation detail:

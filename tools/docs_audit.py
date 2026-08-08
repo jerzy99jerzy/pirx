@@ -14,7 +14,10 @@ state, per FAMILY.md section 1:
   4. the harness catalogue's row count matches its own declared assertion;
   5. every threat-model row PT1..PTn exists, with no gaps or duplicates;
   6. README's "You are here" position marker names the version STATUS.json
-     declares, so the reader's orientation cannot outlive a bump.
+     declares, so the reader's orientation cannot outlive a bump;
+  7. README's badges carry numbers that match reality - a badge is a claim
+     rendered in colour, and a stale one is read by everyone who never opens
+     the file behind it.
 
 Exit status is 0 when clean, 1 otherwise, so it slots into the gate beside
 ruff, mypy, and pytest. Failures print the specific mismatch, because an
@@ -132,6 +135,52 @@ def check_you_are_here(problems: list[str]) -> None:
         )
 
 
+def check_badges(problems: list[str]) -> None:
+    """README badges carry numbers, and a number in a badge is a claim.
+
+    Checked here: the ones derivable without running the suite. The test-count
+    badge needs a real collection (parametrised tests mean a grep undercounts
+    by 25), so it is checked in `tests/test_docs_audit.py` where pytest exists.
+    """
+    readme = (ROOT / "README.md").read_text()
+    status = json.loads((ROOT / "STATUS.json").read_text())
+
+    version = re.search(r"badge/version-([0-9.]+)-", readme)
+    if not version:
+        problems.append("README has no version badge")
+    elif version.group(1) != status["version"]:
+        problems.append(
+            f"version badge says {version.group(1)}, "
+            f"STATUS.json says {status['version']}"
+        )
+
+    attacks = re.search(r"badge/hostile%20attacks-(\d+)-", readme)
+    real_attacks = len(
+        [
+            line
+            for line in (ROOT / "tests/harness/CATALOGUE.md").read_text().splitlines()
+            if line.startswith("| A")
+        ]
+    )
+    if not attacks:
+        problems.append("README has no hostile-attacks badge")
+    elif int(attacks.group(1)) != real_attacks:
+        problems.append(
+            f"attacks badge says {attacks.group(1)}, catalogue has {real_attacks}"
+        )
+
+    rows = re.search(r"badge/threat%20rows-PT1--PT(\d+)-", readme)
+    real_rows = len(
+        re.findall(r"^## PT(\d+)", (ROOT / "docs/THREAT-MODEL.md").read_text(), re.M)
+    )
+    if not rows:
+        problems.append("README has no threat-rows badge")
+    elif int(rows.group(1)) != real_rows:
+        problems.append(
+            f"threat-rows badge says PT{rows.group(1)}, model has {real_rows} rows"
+        )
+
+
 def check_threat_numbering(problems: list[str]) -> None:
     """PT ids are never renumbered or repurposed, so the set must be 1..n."""
     text = (DOCS / "THREAT-MODEL.md").read_text()
@@ -156,6 +205,7 @@ def main() -> int:
     check_catalogue(problems)
     check_threat_numbering(problems)
     check_you_are_here(problems)
+    check_badges(problems)
 
     if problems:
         print("docs audit FAILED:", file=sys.stderr)

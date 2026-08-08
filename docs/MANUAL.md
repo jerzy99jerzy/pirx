@@ -112,8 +112,13 @@ property is a security property that gets selected wrongly at 02:00.
 
 ### 3.1 Single process (the runner)
 
-```
-pirx run  ->  propose  ->  approve (same process)  ->  spend  ->  execute
+```mermaid
+flowchart LR
+    P["pirx run"] --> R["propose"] --> A(["approve<br/><i>same process</i>"])
+    A --> S["spend"] --> E["execute"]
+    classDef default fill:#161b22,stroke:#7d8590,color:#e6edf3
+    classDef human fill:#2b1f3a,stroke:#ffb86c,color:#ffd9a8,stroke-width:3px
+    class A human
 ```
 
 With `PIRX_GRANT_KEY_FILE` **unset**, `pirx run` generates an ephemeral key in
@@ -123,12 +128,20 @@ key to lose.
 
 ### 3.2 Two processes (the gate)
 
-```
-agent host  ->  pirx-gate  ->  downstream MCP server
-                    |
-                    +--> pending/  ->  pirx gate-approve (a human, elsewhere)
-                    |                          |
-                    +<------ grants/ <---------+
+```mermaid
+flowchart LR
+    AH["agent host"] -->|"tools/call"| G["pirx-gate"]
+    G -->|"only once a grant<br/>covers these bytes"| D["downstream<br/>MCP server"]
+    G -->|"writes"| PEND[("pending/")]
+    PEND --> AP["pirx gate-approve"]
+    AP --> H(["human<br/><i>a terminal the gate<br/>does not own</i>"])
+    H -->|"issues"| GR[("grants/")]
+    GR -->|"read on the next retry"| G
+    classDef default fill:#161b22,stroke:#7d8590,color:#e6edf3
+    classDef human fill:#2b1f3a,stroke:#ffb86c,color:#ffd9a8,stroke-width:3px
+    classDef store fill:#26233a,stroke:#9ccfd8,color:#e0def4
+    class H human
+    class PEND,GR store
 ```
 
 The gate cannot host its own approval prompt: its stdin and stdout are the
@@ -555,16 +568,33 @@ for line in open('my-ledger.jsonl'):
 
 A completed gated call:
 
-```
-  0 gate.started                  pid, executable, downstream command
-  1 gate.pending                  a proposal was rendered and queued
-  2 gate.awaiting_approval        the caller got a ticket; nothing forwarded
-  3 gate.presented                a human saw the bytes
-  4 attention.challenge_issued    intent, recorded before the answer
-  5 approval.decided              with elapsed_seconds and floor_seconds
-  6 grant.issued
-  7 gate.forwarded_granted        the original bytes went downstream
-  8 refusal.spent_grant           an immediate replay, refused
+```mermaid
+sequenceDiagram
+    autonumber
+    participant A as agent host
+    participant G as pirx-gate
+    participant L as ledger
+    participant H as human
+    participant D as downstream
+
+    Note over G,L: gate.started - pid, executable, downstream command
+    A->>G: tools/call
+    G->>L: gate.pending
+    G-->>A: input_required (poll ticket)
+    G->>L: gate.awaiting_approval
+    H->>G: pirx gate-approve
+    G->>L: gate.presented
+    G->>L: attention.challenge_issued
+    Note right of H: intent recorded BEFORE the answer
+    H->>G: transcription + approve
+    G->>L: approval.decided (elapsed_seconds, floor_seconds)
+    G->>L: grant.issued
+    A->>G: tools/call (retry)
+    G->>D: the original bytes
+    G->>L: gate.forwarded_granted
+    A->>G: tools/call (replay)
+    G->>L: refusal.spent_grant
+    G-->>A: error: grant already spent
 ```
 
 ### 8.4 Three habits worth forming
