@@ -1,7 +1,7 @@
 # TODO
 
 ```
-Document:  docs/TODO.md, version 1.1
+Document:  docs/TODO.md, version 1.2
 Scope:     small, non-scope-bearing work - documentation, tooling, ergonomics.
            Anything that changes what Pirx does, or accepts a risk, belongs in
            the brief's deferral table (section 9) with an owning version, not
@@ -22,7 +22,7 @@ than parked.
 | T5 | Paginate `find_comment` | first observed false negative from reconciliation, or first adapter with a smaller page size | open, trigger-owned (F30) |
 | T6 | Vendor the real WORKFLOW.md, or leave section 8 as the convention record | exchange entry PX-0001 | open (F32) |
 | T7 | Confirm or strike the five `[cve-digest: confirm]` provenance lines in FAMILY.md | exchange entry PX-0001 | open (F35) |
-| T8 | `pirx verify <ledger>` subcommand | 0.5.0.0 | open (0.4.0.1 review, improvement 1) |
+| T8 | `pirx verify <ledger>` subcommand, report including the fatigue signal derived from attention events | 0.8.0.0 | open, re-owned from 0.5.0.0 (brief v1.4: 0.5.0.0 is single-purpose attentive approval; the report is worth shipping once it can carry the PT15 signal) |
 
 ## Rejected
 

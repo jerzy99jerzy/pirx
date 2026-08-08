@@ -149,3 +149,54 @@ moment the payload crosses a network or a shared queue, a detached signature
 from Rappaport becomes required and this row becomes a control row. The
 acceptance is executable: the 0.2.0.0 harness carries a passing
 plausible-forgery case whose deletion must be explained.
+
+## PT15 - Approval-attention exhaustion (proof-of-read)
+
+**The threat.** At volume, per-action approval degrades into reflexive
+confirmation: the human is shown the bytes, the token is typed, and the
+ledger continues to look clean while the property the thesis rests on - a
+real review - is gone. This is B1, the thesis's named weakest link, made a
+threat row so its mitigations do not invert P4. No attacker is required;
+normal operation induces it. An attacker who can generate approval volume
+(a flood of plausible verdicts, or later a flood of gated tool calls) can
+induce it deliberately and then slip one hostile action into the rhythm.
+
+**Distinct from PT13**, which bounds *volume* (proposal budget, full-word
+token). PT15 is about the *evidentiary quality* of each approval that
+happens within that volume.
+
+**Controls.**
+- *Content-derived challenge*: before the decision prompt, the approver
+  transcribes one deterministic field, selected from `CHALLENGE_FIELDS` by
+  the action hash - unpredictable before the canonical bytes exist, so a
+  cached or scripted answer from another proposal fails unless the values
+  coincide. A mismatch is `refusal.challenge_failed`; the event names the
+  field, never the expected value. Prose is never challengeable (PT2).
+- *Reading floor*: an approving answer arriving faster than a constant floor
+  derived from the byte length is `refusal.reading_floor`. Declining is not
+  floor-checked. The floor is a lower bound that catches reflexive approval;
+  it is deliberately far below an honest reading time, because a floor
+  dressed up as proof of reading would be theatre.
+- *Session grant budget*: `MAX_GRANTS_PER_SESSION` grants per issuer, a
+  constant (P6); the next issue is `refusal.session_budget`. Refused issues
+  do not consume the budget. In the single-run topology PT13's proposal
+  budget (10) binds first, so this control's bite arrives with a long-lived
+  approval surface (the gate, 0.7.0.0); the primitive ships and is attacked
+  now, per P3.
+- *Issuance re-verification*: `AttentionEvidence` is a required field of the
+  decision, checked again by the issuer, so a decision object fabricated in
+  code cannot route around the surface.
+
+**Named residual, stated so it cannot be inflated.** All of this
+demonstrates that the approver **operated on the exact hashed bytes** -
+located a field in them, within a measured interval. It does not and cannot
+demonstrate comprehension, and no document in this repository may use
+"understood" where the measurement supports only "read" (P7). A determined
+approver can still tool their way past the challenge; what remains is that
+the bytes pass through something the approver operates, and the ledger's
+latency record makes the pattern visible to an auditor.
+
+**Lives in** `types.py` (constants), `approve.py` (surface),
+`grant.py` (issuance), `session.py`/`cli.py` (events).
+**Measured by** `test_approve.py` (PT15 block), `test_grant.py` (PT15
+block), and harness attacks A31-A35.

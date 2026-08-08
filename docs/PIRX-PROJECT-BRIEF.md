@@ -6,7 +6,7 @@ Project brief and first-sprint specification. Self-contained: executable in a
 fresh session with no context beyond this file.
 
 ```
-Brief version:  1.3   (changelog in section 11)
+Brief version:  1.4   (changelog in section 11)
 Repository:     github.com/jerzy99jerzy/pirx   (to be created)
 Consumes:       cve-digest.verdict/1
 Produced by:    github.com/jerzy99jerzy/cve-digest (display codename Rappaport)
@@ -311,7 +311,10 @@ Numbered `PT` to avoid collision with Rappaport's `T` series.
 | 0.2.0.0 | The hostile-agent harness: a scripted proposer that attempts every PT, in CI, on every run. This is the verification vehicle and it lands before any write. |
 | 0.3.0.0 | First capability: append a comment to an existing ticket. Chosen because it is the smallest genuine write - visible, reversible, and useless to an attacker who obtains it. Brings execution semantics with it: at-most-once, an `outcome_unknown` ledger event, and an idempotency key derived from the action hash. |
 | 0.4.0.0 | The model enters the proposer, and the renderer's untrusted-prose segregation lands with it. PT2 and PT6 become live threats here rather than theoretical ones, which is why this follows a working write path rather than preceding it. |
-| 0.5.0.0 | Second capability: create a change record. Adds field mapping and a template, no new authority model. |
+| **0.5.0.0** | Attentive approval (PT15): content-derived challenge, reading floor, session grant budget, `AttentionEvidence` verified at issuance, attention events in the ledger, harness attacks A31-A35. No gate code. Supersedes the former 0.5.0.0 row ("second capability: create a change record") - the substitution is recorded in the v1.4 changelog, not made silently; the second capability returns as the first gated tool at 0.7.0.0. |
+| 0.6.0.0 | The justification-source abstraction: the verdict path becomes adapter #1 with zero behaviour change, proven by the existing suite passing unmodified; `CONTRACT.md` grows the abstraction. |
+| 0.7.0.0 | `pirx-gate`, a stdio MCP proxy: `InterceptedCallJustification` as adapter #2, the gated registry's first entry, threat rows PT16-PT18 with their harness attacks, the identity launcher (macOS + Linux) wired as the gate's process identity. Design: `docs/PIRX-GATE-DESIGN.md`. |
+| 0.8.0.0 | `pirx verify` report including the fatigue signal derived from attention events (T8's new owner); attestation export mapping ledger evidence to EU AI Act art. 14 / ISO 42001 demonstrable-oversight language. |
 
 The ordering is deliberate and mirrors Rappaport's: the trust machinery ships
 and is tested against an adversary **before** the thing it protects exists. The
@@ -515,6 +518,34 @@ the level of this brief:
 ---
 
 ## 11. Changelog
+
+**v1.4** - the strategic reframe becomes plan. Load-bearing changes:
+
+- Version plan extended through 0.8.0.0 along the two axes accepted from the
+  session's market reading (`docs/PIRX-GATE-DESIGN.md`): the MCP gate as the
+  insertion point, proof-of-read as what makes the gate non-trivial. The
+  thesis is unchanged; the verdict pipeline becomes one adapter of a general
+  justification-source mechanism at 0.6.0.0, which is why this is a brief
+  bump and not a new brief (the H1 test: the grant's anchor - bound to bytes,
+  spent before execution, model outside the machinery - does not move).
+- **Scope substitution at 0.5.0.0, made explicitly:** the settled row
+  "second capability: create a change record" is superseded by attentive
+  approval (PT15). Rationale: B1 was the thesis's named weakest link, and a
+  second capability would have widened the write surface while the approval
+  covering it remained unmeasured. The change-record capability returns as
+  the first gated tool at 0.7.0.0. Owner's sign-off: instruction to execute
+  the gate design, 2026-08-08.
+- PT15 added to the threat model: approval-attention exhaustion, with
+  content-derived challenge, reading floor, session grant budget, and
+  issuance re-verification as controls; comprehension named as the residual
+  no measurement here supports. PT13 remains the volume bound; PT15 is the
+  evidentiary quality of each approval within it.
+- `AttentionEvidence` becomes a required field of `ApprovalDecision`,
+  verified again at issuance, so the surface measures attention and the
+  issuer enforces it (ARCHITECTURE A13).
+- Harness grows A31-A35, the scripted inattentive approver.
+- T8 (`pirx verify`) re-owned from 0.5.0.0 to 0.8.0.0, where the report can
+  include the fatigue signal the attention events now make derivable.
 
 **v1.3** - language decision recorded so it stops returning. New settled
 decision 6: Python for every planned version, with the reasoning written out

@@ -69,6 +69,28 @@ MAX_PROPOSALS_PER_RUN = 10
 #: Grant lifetime, measured on the monotonic clock (PT4).
 GRANT_TTL_SECONDS = 300.0
 
+#: Reading floor (PT15): minimum seconds between presenting the canonical
+#: bytes and an *approving* answer, derived from byte length. Chosen to catch
+#: reflexive approval, not to prove reading - a floor high enough to prove
+#: reading would be theatre, and the honest claim is the lower bound only.
+#: Declining is never floor-checked: refusing fast is not the threat.
+READING_FLOOR_BASE_SECONDS = 2.0
+READING_FLOOR_SECONDS_PER_KIB = 2.0
+
+#: Session grant budget (PT15): grants issued by one issuer before it refuses.
+#: In the single-run topology the PT13 proposal budget (10) binds first, so
+#: this constant's bite arrives with a long-lived approval surface (the gate,
+#: 0.7.0.0). The primitive ships and is attacked now, per family practice P3.
+MAX_GRANTS_PER_SESSION = 20
+
+#: Attention-challenge field pool (PT15). The field the approver must
+#: transcribe is selected from this tuple by the action hash, so it cannot be
+#: predicted before the canonical bytes exist. Every entry names a
+#: deterministic ``Proposal`` attribute that the renderer prints verbatim;
+#: prose is never challengeable, because transcribing untrusted prose would
+#: put producer text into the approver's hands as an expected value (PT2).
+CHALLENGE_FIELDS: tuple[str, ...] = ("target", "verdict", "action")
+
 #: Canonical schema id this version consumes. Any other value is refused,
 #: never coerced (PT1).
 ACCEPTED_VERDICT_SCHEMA = "cve-digest.verdict/1"

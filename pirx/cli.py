@@ -9,8 +9,10 @@ Flow, and the ledger event at each step:
 
     parse            -> run.started, payload.accepted / refusal.*
     propose          -> proposal.created (per item), refusal.budget
-    render + present -> proposal.rendered, approval.decided
-    issue            -> grant.issued
+    render + present -> proposal.rendered, attention.challenge_issued,
+                        approval.decided / refusal.challenge_failed
+                                         / refusal.reading_floor
+    issue            -> grant.issued / refusal.session_budget
     spend            -> grant.spent / refusal.*
     execute          -> refusal.unregistered_action  (0.1.0.0: always)
 
@@ -31,6 +33,7 @@ import os
 import sys
 import time
 from collections.abc import Callable, Sequence
+from functools import partial
 from pathlib import Path
 from typing import TextIO
 
@@ -90,9 +93,24 @@ def run(
         created_at = clock()
         rendered = session.render(item)
 
-        decision = approval.decide(
-            rendered, age_seconds=clock() - created_at, out=out, read_line=read_line
-        )
+        try:
+            decision = approval.decide(
+                rendered,
+                age_seconds=clock() - created_at,
+                out=out,
+                read_line=read_line,
+                clock=clock,
+                on_challenge=partial(
+                    session.challenge_issued, rendered.action_hash
+                ),
+            )
+        except Refusal as exc:
+            # PT15: the surface refused before a decision existed. Recorded
+            # here because the runner is the sanctioned top-level catcher.
+            session.refused(exc)
+            out.write(f"refused: {exc.message}\n")
+            exit_code = 3
+            continue
         session.decided(decision)
         if not decision.approved:
             out.write("declined; nothing was authorised\n")

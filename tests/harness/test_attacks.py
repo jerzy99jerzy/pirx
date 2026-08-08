@@ -23,16 +23,19 @@ from fakes import RecordingAdapter
 from pirx import approve, ledger
 from pirx.errors import (
     AdapterUnavailableRefusal,
+    ChallengeFailedRefusal,
     EnumRefusal,
     ExpiredGrantRefusal,
     HashMismatchRefusal,
     LedgerChainRefusal,
+    ReadingFloorRefusal,
     SchemaRefusal,
+    SessionBudgetRefusal,
     SpentGrantRefusal,
     TargetMismatchRefusal,
     UnregisteredActionRefusal,
 )
-from pirx.grant import ApprovalDecision
+from pirx.grant import ApprovalDecision, AttentionEvidence
 from pirx.reconcile import reconcile
 from pirx.registry import PRODUCTION_REGISTRY, Registry
 from pirx.session import Session
@@ -69,12 +72,31 @@ def session(
     )
 
 
-def approval(rendered: Any, approved: bool = True) -> ApprovalDecision:
+def attentive_evidence(
+    rendered: Any, passed: bool = True, elapsed: float | None = None
+) -> AttentionEvidence:
+    floor = approve.reading_floor_seconds(len(rendered.canonical_bytes))
+    return AttentionEvidence(
+        challenge_field=approve.challenge_field(rendered),
+        challenge_passed=passed,
+        elapsed_seconds=floor + 1.0 if elapsed is None else elapsed,
+        floor_seconds=floor,
+    )
+
+
+def approval(
+    rendered: Any,
+    approved: bool = True,
+    evidence: AttentionEvidence | None = None,
+) -> ApprovalDecision:
     return ApprovalDecision(
         approved=approved,
         action_hash=rendered.action_hash,
         target=rendered.proposal.target,
         approver_claim="harness",
+        attention=(
+            attentive_evidence(rendered) if evidence is None else evidence
+        ),
     )
 
 
@@ -428,6 +450,158 @@ def test_a15_plausible_forgery_is_accepted(
     assert proposal.params["cve_id"] == "CVE-2026-4444"
 
 
+# --- A31-A35: attention exhaustion (PT15) -----------------------------------
+
+
+def _precomputed(payload: bytes, index: int = 0) -> Any:
+    """The rendered proposal cli.run will present, computed by the same
+    deterministic pipeline, so an attack script can aim at the real bytes."""
+    from pirx.consumer import parse
+    from pirx.proposal import prepare
+    from pirx.proposer import propose
+
+    return prepare(propose(parse(payload)).proposals[index])
+
+
+def test_a31_reflexive_approval_is_refused(tmp_path: Path) -> None:
+    """A scripted approver answers the challenge correctly but approves in
+    zero elapsed time. The floor refuses; no grant exists."""
+    from pirx.cli import run
+
+    clock = FakeClock()  # never advanced: every answer is instantaneous
+    payload = bundle()
+    payload_path = tmp_path / "payload.json"
+    payload_path.write_bytes(payload)
+    book = tmp_path / "ledger.jsonl"
+
+    r = _precomputed(payload)
+    field = approve.challenge_field(r)
+    script = iter([approve.expected_transcription(r, field), "approve"])
+
+    code = run(payload_path, book, io.StringIO(), lambda: next(script) + "\n",
+               clock=clock)
+    assert code == 3
+    assert find(book, "refusal.reading_floor")
+    assert "grant.issued" not in names(book)
+    assert "approval.decided" not in names(book)
+
+
+def test_a32_blind_transcription_is_refused(tmp_path: Path) -> None:
+    """An approver who never looked at the bytes cannot transcribe the
+    challenged field. The refusal is typed, ledgered, and names the field -
+    never the expected value."""
+    from pirx.cli import run
+
+    payload = bundle()
+    payload_path = tmp_path / "payload.json"
+    payload_path.write_bytes(payload)
+    book = tmp_path / "ledger.jsonl"
+
+    script = iter(["something-plausible", "approve"])
+    code = run(payload_path, book, io.StringIO(), lambda: next(script) + "\n",
+               clock=FakeClock())
+    assert code == 3
+    record = find(book, "refusal.challenge_failed")
+    assert record["payload"]["field"] in ("target", "verdict", "action")
+    assert "expected" not in record["payload"]
+    assert "grant.issued" not in names(book)
+    # Intent preceded the answer: the challenge event is already there.
+    assert names(book).index("attention.challenge_issued") < names(book).index(
+        "refusal.challenge_failed"
+    )
+
+
+def test_a33_cached_answer_replay_across_proposals_fails(
+    tmp_path: Path,
+) -> None:
+    """An approver caches proposal 1's transcription and replays it for
+    proposal 2 without reading. The values differ, so the replay is refused;
+    exactly one grant exists."""
+    from pirx.cli import run
+
+    payload = bundle([verdict("CVE-2026-1001"), verdict("CVE-2026-1002")])
+    payload_path = tmp_path / "payload.json"
+    payload_path.write_bytes(payload)
+    book = tmp_path / "ledger.jsonl"
+
+    r1, r2 = _precomputed(payload, 0), _precomputed(payload, 1)
+    answer1 = approve.expected_transcription(r1, approve.challenge_field(r1))
+    answer2 = approve.expected_transcription(r2, approve.challenge_field(r2))
+    # Attack precondition, asserted so a renderer change that makes the two
+    # answers coincide re-authors this attack loudly instead of passing it
+    # vacuously.
+    assert answer1 != answer2
+
+    clock = FakeClock()
+    floor = approve.reading_floor_seconds(len(r1.canonical_bytes)) + 1
+
+    script = iter([answer1, "approve", answer1, "approve"])
+
+    def read() -> str:
+        clock.advance(floor)
+        return next(script) + "\n"
+
+    code = run(payload_path, book, io.StringIO(), read, clock=clock)
+    assert code == 3
+    assert names(book).count("grant.issued") == 1
+    assert find(book, "refusal.challenge_failed")
+
+
+def test_a34_session_grant_budget_overflow(
+    tmp_path: Path, clock: FakeClock, book: Path
+) -> None:
+    """The (N+1)th grant in one session is refused with the budget named.
+    In the single-run topology PT13's proposal budget binds first; this
+    proves the primitive at the boundary the gate (0.7.0.0) will stand on."""
+    from pirx.proposal import Proposal, prepare
+    from pirx.types import MAX_GRANTS_PER_SESSION, UntrustedProse, VerdictId
+
+    sess = session(tmp_path, clock, PRODUCTION_REGISTRY)
+    for n in range(MAX_GRANTS_PER_SESSION):
+        r = prepare(Proposal(
+            action="ticket.comment",
+            target=TargetId(f"ticket:CVE-2026-{5000 + n}"),
+            verdict=VerdictId(f"cve-digest.verdict/1#CVE-2026-{5000 + n}"),
+            params={"cve_id": f"CVE-2026-{5000 + n}"},
+            prose={"note": UntrustedProse("n")},
+        ))
+        sess.issue(approval(r), r)
+
+    overflow = prepare(Proposal(
+        action="ticket.comment",
+        target=TargetId("ticket:CVE-2026-9999"),
+        verdict=VerdictId("cve-digest.verdict/1#CVE-2026-9999"),
+        params={"cve_id": "CVE-2026-9999"},
+        prose={"note": UntrustedProse("n")},
+    ))
+    with pytest.raises(SessionBudgetRefusal):
+        sess.issue(approval(overflow), overflow)
+    record = find(book, "refusal.session_budget")
+    assert record["payload"]["budget"] == MAX_GRANTS_PER_SESSION
+    assert names(book).count("grant.issued") == MAX_GRANTS_PER_SESSION
+
+
+def test_a35_fabricated_decision_cannot_route_around_the_surface(
+    tmp_path: Path, clock: FakeClock, book: Path
+) -> None:
+    """A decision object constructed in code - no challenge passed, or an
+    elapsed time below the floor - is refused at issuance. The surface
+    measures attention; the issuer enforces it (ARCHITECTURE A17)."""
+    payload = bundle()
+    sess = session(tmp_path, clock, PRODUCTION_REGISTRY)
+    r = first_rendered(sess, payload)
+
+    with pytest.raises(ChallengeFailedRefusal):
+        sess.issue(approval(r, evidence=attentive_evidence(r, passed=False)), r)
+    with pytest.raises(ReadingFloorRefusal):
+        sess.issue(approval(r, evidence=attentive_evidence(r, elapsed=0.0)), r)
+
+    kinds = names(book)
+    assert "refusal.challenge_failed" in kinds
+    assert "refusal.reading_floor" in kinds
+    assert "grant.issued" not in kinds
+
+
 # --- catalogue integrity ----------------------------------------------------
 
 
@@ -442,7 +616,7 @@ def test_every_catalogue_row_has_a_test() -> None:
         line for line in catalogue.splitlines()
         if line.startswith("| A") and "`test_" in line
     ]
-    assert len(rows) == 30, f"expected 30 catalogue rows, found {len(rows)}"
+    assert len(rows) == 35, f"expected 35 catalogue rows, found {len(rows)}"
 
     defined: set[str] = set()
     for module_path in here.glob("test_*.py"):
