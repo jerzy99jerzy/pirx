@@ -449,6 +449,8 @@ dispositioned as fixed, accepted with reasons, or deferred.
 | 0.7.1.0 | `pirx-gate` as a process: the stdio pump, plus the first user manual. **Shipped.** |
 | 0.7.2.0 | The full operator manual (`docs/MANUAL.md` v2.0) and `tools/manual_audit.py`, a fifth CI check that fails when the manual's facts drift from the code. **Shipped.** |
 | 0.8.0.0 | `pirx verify` report with the fatigue signal; attestation export (EU AI Act art. 14 / ISO 42001 language) |
+| 0.9.0.0 | Streamable HTTP transport for the gate, and the detached payload signature its own threat row makes due at that point |
+| 1.0.0.0 | Defined by condition, not by content: brief section 6.1 |
 
 Deferred with named owners, not forgotten: HMAC grants plus a durable spend
 store (owned by the first multi-process version, coupled - either both or

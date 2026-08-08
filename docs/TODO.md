@@ -1,7 +1,7 @@
 # TODO
 
 ```
-Document:  docs/TODO.md, version 2.0
+Document:  docs/TODO.md, version 2.1
 Scope:     small, non-scope-bearing work - documentation, tooling, ergonomics.
            Anything that changes what Pirx does, or accepts a risk, belongs in
            the brief's deferral table (section 9) with an owning version, not
@@ -34,6 +34,13 @@ rather than parked.
   checkers are currently lenient about a language level the project does not
   run on. Decide whether to raise both or to record the divergence with a
   reason; either is fine, silence is not.
+- [ ] **next tooling PR** `docs_audit.py` gained no check from brief v1.7's
+  finding: 0.7.2.0 shipped, was reviewed, and appeared in README's plan while
+  the brief's version plan had no row for it. A cross-check - every version
+  README marks shipped has a row in the brief's section 6 table - would have
+  caught it. Decide whether it is worth a sixth invariant or whether this
+  class of drift stays a human read at review time; either is fine, silence
+  is not.
 - [ ] **next docs PR** `docs/MERGE-PROCEDURE.md` v1.0 lists three required
   status checks. The protection on `main` requires four - `ruff`, `mypy`,
   `pytest`, `docs-audit` - verified against the API during the 0.6.0.0 push.
@@ -49,10 +56,6 @@ rather than parked.
   code is deliberately not written ahead of it, because the research
   established that the macOS strength claim does not transfer and an artefact
   written first would have carried a README promising it (PT19).
-- [ ] **0.9.x** Streamable HTTP transport for the gate, which is stdio-only
-  today. Carries the explicit stdlib-only decision: if the standard library
-  cannot carry it honestly, the constraint is amended in the brief with
-  reasons rather than worked around in code.
 
 ### Trigger-owned
 
@@ -67,6 +70,15 @@ the commitment: it is what makes these deferrals rather than intentions.
   the pending queue and the spend store. Neither expires anything on its own
   today, and that is deliberate: an automatic prune of a spend record is a
   replay window with a timer on it.
+
+## Moved out
+
+Items that turned out to be scope rather than housekeeping, with where they
+went. Kept as a short list so a reader does not conclude an item was dropped.
+
+- **0.9.x streamable HTTP transport** -> brief v1.7, version plan row 0.9.0.0.
+  It changes what Pirx does and fires PT14's trigger, which is exactly what
+  this document's header excludes.
 
 ## Done recently
 
