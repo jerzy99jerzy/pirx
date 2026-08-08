@@ -1,12 +1,13 @@
-# Pirx - architecture assumptions, sprints 0.1.0.0 through 0.3.0.0
+# Pirx - architecture assumptions
 
 ```
-Document:   docs/ARCHITECTURE.md, version 1.3
+Document:   docs/ARCHITECTURE.md, version 1.4
 Refers to:  PIRX-PROJECT-BRIEF.md v1.4 (thesis, threat model PT1-PT15,
             version plan), FAMILY.md v1.0 (practices P1-P13),
-            PIRX-GATE-DESIGN.md v1.0 (0.5.0.0-0.8.0.0 direction)
+            PIRX-GATE-DESIGN.md v1.1 (0.5.0.0-0.8.0.0 direction)
 Covers:     sprint 0.1.0.0 (trust loop), 0.2.0.0 (hostile-agent harness),
-            0.3.0.0 (first capability), 0.5.0.0 (attentive approval, A17)
+            0.3.0.0 (first capability), 0.5.0.0 (attentive approval, A17),
+            0.6.0.0 (justification abstraction, A18)
 Authority:  implementation level only. Where this document appears to
             conflict with the brief or a threat-model row, the brief wins
             and the conflict is a finding (FAMILY.md section 4). Settled
@@ -419,3 +420,4 @@ a version bump, not a discussion in a pull request.
 | A15 | Every ledger append flushes and fsyncs before returning | At-most-once leans on `capability.attempt` being durable before the adapter runs; a record in a page cache when the host dies never happened (F24) |
 | A16 | A16 supersedes the 4.2 cross-run sketch: an in-process spent-set is per-process and A11 documents that, rather than claiming a defence the design does not provide (F33) |
 | A17 | `AttentionEvidence` is a required field of `ApprovalDecision`, measured at the approval surface and verified again at grant issuance; the session grant budget lives in the issuer | The surface is where attention is measured, not the only place it is enforced: a decision object fabricated in code cannot buy a grant without evidence (PT15). Refused issues do not consume the session budget, so refusals cannot be used to starve the approver of authority |
+| A18 | Why an action is warranted is a `Justification` produced by a source adapter; the renderer asks the justification for its own lines | A second evidence source (the gate's intercepted call, 0.7.0.0) is an addition, not a renderer rewrite. The verdict adapter renders exactly the pre-abstraction line, so `pirx.proposal/1` action hashes are unchanged - held as golden bytes, not asserted. The evidence digest is carried and deliberately *not* in the preimage: putting it there is a wire-format change and therefore a new render schema id (P8), owned by 0.7.0.0 |

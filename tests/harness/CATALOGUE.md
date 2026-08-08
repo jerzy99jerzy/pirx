@@ -1,7 +1,8 @@
 # Hostile-agent attack catalogue
 
 ```
-Document:  tests/harness/CATALOGUE.md, version 1.1 (A31-A35 ship with 0.5.0.0)
+Document:  tests/harness/CATALOGUE.md, version 1.2 (A31-A35 with 0.5.0.0,
+           A36 with 0.6.0.0)
 Source:    docs/ARCHITECTURE.md section 4.2
 Runs in:   CI on every push, same gate as unit tests - not nightly, because
            a control verified occasionally is a control that regresses
@@ -56,6 +57,7 @@ future owner, not silent scope (P12).
 | A33 | Cached-answer replay across proposals | PT15 | `refusal.challenge_failed` for the second proposal; exactly one `grant.issued` | `test_a33_cached_answer_replay_across_proposals_fails` |
 | A34 | Session grant budget overflow: the (N+1)th issue | PT15 | `refusal.session_budget` naming the budget | `test_a34_session_grant_budget_overflow` |
 | A35 | Fabricated decision routed around the surface | PT15 | `refusal.challenge_failed` / `refusal.reading_floor` at issuance | `test_a35_fabricated_decision_cannot_route_around_the_surface` |
+| A36 | Evidence substitution: a justification naming another verdict | PT5 | `TypeError` at construction; no `proposal.created` | `test_a36_justification_cannot_disagree_with_the_verdict_it_names` |
 
 ## A31-A35 exist because 0.5.0.0 made PT15 a controlled threat
 

@@ -12,7 +12,9 @@ state, per FAMILY.md section 1:
   2. STATUS.json's pins match the versions those documents declare;
   3. every shipped version named in README's version plan has a review file;
   4. the harness catalogue's row count matches its own declared assertion;
-  5. every threat-model row PT1..PTn exists, with no gaps or duplicates.
+  5. every threat-model row PT1..PTn exists, with no gaps or duplicates;
+  6. README's "You are here" position marker names the version STATUS.json
+     declares, so the reader's orientation cannot outlive a bump.
 
 Exit status is 0 when clean, 1 otherwise, so it slots into the gate beside
 ruff, mypy, and pytest. Failures print the specific mismatch, because an
@@ -108,6 +110,28 @@ def check_catalogue(problems: list[str]) -> None:
         )
 
 
+def check_you_are_here(problems: list[str]) -> None:
+    """README's position marker must name the version STATUS.json declares.
+
+    A "current version" written in prose is a claim the code does not
+    produce, and it goes stale on the first bump that forgets it (P7). This
+    pins it: the marker moves with the bump or the gate goes red. Exactly one
+    marker may exist, because two would let a reader find the stale one.
+    """
+    status = json.loads((ROOT / "STATUS.json").read_text())
+    readme = (ROOT / "README.md").read_text()
+    markers = re.findall(r"\*\*You are here: (\d+\.\d+\.\d+\.\d+)\.\*\*", readme)
+    if not markers:
+        problems.append("README has no 'You are here: <version>' marker")
+    elif len(markers) > 1:
+        problems.append(f"README has {len(markers)} position markers; expected one")
+    elif markers[0] != status["version"]:
+        problems.append(
+            f"README says 'You are here: {markers[0]}' but STATUS.json "
+            f"declares version {status['version']!r}"
+        )
+
+
 def check_threat_numbering(problems: list[str]) -> None:
     """PT ids are never renumbered or repurposed, so the set must be 1..n."""
     text = (DOCS / "THREAT-MODEL.md").read_text()
@@ -131,6 +155,7 @@ def main() -> int:
     check_reviews(problems)
     check_catalogue(problems)
     check_threat_numbering(problems)
+    check_you_are_here(problems)
 
     if problems:
         print("docs audit FAILED:", file=sys.stderr)
