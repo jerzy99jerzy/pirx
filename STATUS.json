@@ -1,6 +1,6 @@
 {
   "project": "pirx",
-  "version": "0.7.0.2",
+  "version": "0.7.1.0",
   "consumes": [
     "cve-digest.verdict/1",
     "mcp/2026-07-28"
@@ -8,8 +8,8 @@
   "produces": [],
   "registered_capabilities": 1,
   "family_doc": "1.0",
-  "brief": "1.5",
-  "architecture": "2.0",
+  "brief": "1.6",
+  "architecture": "2.1",
   "note": "Published for humans and exchange entries. Never read by the other repository's tooling (FAMILY.md section 1).",
   "model_assisted": "optional, opt-in, recorded per run",
   "docs_audit": "tools/docs_audit.py",
