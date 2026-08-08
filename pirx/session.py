@@ -122,6 +122,24 @@ class Session:
         )
         return rendered
 
+    def challenge_issued(self, action_hash: ActionHash, field: str) -> None:
+        """Intent before action (PT9): written while the human is answering.
+
+        Carries the field name, never the expected value (PT15).
+        """
+        self.ledger.append(
+            "attention.challenge_issued", action_hash=action_hash, field=field
+        )
+
+    def refused(self, exc: Refusal) -> None:
+        """Record a refusal raised by the approval surface.
+
+        The surface has no ledger; the runner catches its typed refusals and
+        records them here. This is recording by the sanctioned top-level
+        catcher, not suppression inside the pipeline (P11).
+        """
+        self._record_refusal(exc)
+
     def decided(self, decision: ApprovalDecision) -> None:
         self.ledger.append(
             "approval.decided",
@@ -129,6 +147,10 @@ class Session:
             action_hash=decision.action_hash,
             approver_claim=decision.approver_claim,
             authenticated=decision.authenticated,
+            challenge_field=decision.attention.challenge_field,
+            challenge_passed=decision.attention.challenge_passed,
+            elapsed_seconds=round(decision.attention.elapsed_seconds, 3),
+            floor_seconds=round(decision.attention.floor_seconds, 3),
         )
 
     def issue(

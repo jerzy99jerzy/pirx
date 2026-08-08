@@ -82,6 +82,12 @@ than building it.
   consumed in the producer's ranking order. An approval surface that presents
   an unbounded queue turns a capability grant back into a checkbox by
   exhausting the human.
+- **Does not treat a shown byte as a read byte.** Since 0.5.0.0 an approval
+  carries measured attention evidence (PT15): the approver transcribes one
+  hash-selected field from the rendered bytes, an approving answer below a
+  length-derived floor is refused, and a session's grants are budgeted. The
+  honest limit is stated where the code lives: this demonstrates the approver
+  operated on the exact hashed bytes, never that they understood them.
 - **Does not retry.** A failed or interrupted action is reported, never
   re-executed. Re-issuing authority is a human decision made with the ledger
   in hand.
@@ -185,7 +191,7 @@ threat wearing a helpful face.
 |---|---|
 | 0 | ran to completion; every approved action executed |
 | 2 | refused before any approval: payload at the boundary, or the model outside its contract |
-| 3 | a refusal fired inside the loop (expired grant, unregistered action, no adapter) |
+| 3 | a refusal fired inside the loop (expired grant, unregistered action, no adapter, failed attention challenge, reading floor, session budget) |
 | 4 | the target system refused a write; authority was consumed and is not refunded |
 | 64 | usage error |
 | 78 | reconciliation requested with no adapter configured |
@@ -325,7 +331,10 @@ dispositioned as fixed, accepted with reasons, or deferred.
 | 0.2.0.0 | Hostile-agent harness, landing before any write. **Shipped.** |
 | 0.3.0.0 | First capability: ticket comment, at-most-once semantics. **Shipped.** |
 | 0.4.0.0 | The model enters the proposer, behind the untrusted-prose fence. **Shipped.** |
-| 0.5.0.0 | Second capability: create a change record |
+| 0.5.0.0 | Attentive approval (PT15): content-derived challenge, reading floor, session grant budget, attention evidence verified at issuance. **Shipped.** |
+| 0.6.0.0 | Justification-source abstraction; the verdict path becomes adapter #1, behaviour unchanged |
+| 0.7.0.0 | `pirx-gate`: stdio MCP proxy, first gated tool, PT16-PT18, process identity (see `docs/PIRX-GATE-DESIGN.md`) |
+| 0.8.0.0 | `pirx verify` report with the fatigue signal; attestation export (EU AI Act art. 14 / ISO 42001 language) |
 
 Deferred with named owners, not forgotten: HMAC grants plus a durable spend
 store (owned by the first multi-process version, coupled - either both or

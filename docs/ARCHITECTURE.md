@@ -1,11 +1,12 @@
 # Pirx - architecture assumptions, sprints 0.1.0.0 through 0.3.0.0
 
 ```
-Document:   docs/ARCHITECTURE.md, version 1.2
-Refers to:  PIRX-PROJECT-BRIEF.md v1.2 (thesis, threat model PT1-PT14,
-            version plan), FAMILY.md v1.0 (practices P1-P13)
+Document:   docs/ARCHITECTURE.md, version 1.3
+Refers to:  PIRX-PROJECT-BRIEF.md v1.4 (thesis, threat model PT1-PT15,
+            version plan), FAMILY.md v1.0 (practices P1-P13),
+            PIRX-GATE-DESIGN.md v1.0 (0.5.0.0-0.8.0.0 direction)
 Covers:     sprint 0.1.0.0 (trust loop), 0.2.0.0 (hostile-agent harness),
-            0.3.0.0 (first capability)
+            0.3.0.0 (first capability), 0.5.0.0 (attentive approval, A17)
 Authority:  implementation level only. Where this document appears to
             conflict with the brief or a threat-model row, the brief wins
             and the conflict is a finding (FAMILY.md section 4). Settled
@@ -417,3 +418,4 @@ a version bump, not a discussion in a pull request.
 | A14 | The untrusted-prose fence tag is deterministic (incrementing until absent from the content), never random | Inside the hash preimage a random boundary destroys "same input, same bytes"; the approval frame stays random because it lives outside the preimage. Content is indented so no enclosed line can begin with the fence base (F18) |
 | A15 | Every ledger append flushes and fsyncs before returning | At-most-once leans on `capability.attempt` being durable before the adapter runs; a record in a page cache when the host dies never happened (F24) |
 | A16 | A16 supersedes the 4.2 cross-run sketch: an in-process spent-set is per-process and A11 documents that, rather than claiming a defence the design does not provide (F33) |
+| A17 | `AttentionEvidence` is a required field of `ApprovalDecision`, measured at the approval surface and verified again at grant issuance; the session grant budget lives in the issuer | The surface is where attention is measured, not the only place it is enforced: a decision object fabricated in code cannot buy a grant without evidence (PT15). Refused issues do not consume the session budget, so refusals cannot be used to starve the approver of authority |

@@ -12,6 +12,16 @@ hours later is approving a stale proposal rather than spending a stale grant.
 The age line is a decision-quality aid, not an integrity control, and the
 output says so in those terms.
 
+**The attention layer (0.5.0.0, PT15).** Between the frame and the decision
+sits a content-derived challenge: the approver transcribes one deterministic
+field, selected by the action hash from ``CHALLENGE_FIELDS``, so the field
+cannot be predicted before the canonical bytes exist and a cached answer from
+another proposal fails unless the values happen to coincide. An approving
+answer arriving faster than a floor derived from the byte length is refused.
+Both refusals are typed events; both are re-verified at grant issuance, so
+this surface is where attention is *measured*, not the only place it is
+*enforced*.
+
 Does NOT:
   - summarise, colour, reorder, elide, or wrap. Any of those would make the
     displayed bytes differ from the hashed bytes.
@@ -21,6 +31,13 @@ Does NOT:
   - offer a bulk affordance. One proposal, one prompt, one decision (PT12).
   - authenticate the approver. ``approver_claim`` is taken from the process
     environment and carried with ``authenticated: false``.
+  - claim comprehension. The challenge proves the approver located content
+    in the exact hashed bytes; "understood" is a claim no measurement here
+    supports, and the wording throughout says "read", deliberately (P7).
+  - challenge prose. Only deterministic fields are challengeable; making a
+    human transcribe producer prose would hand untrusted text an expected
+    value on this side of the fence (PT2).
+  - floor-check a decline. Refusing fast is not the threat.
 """
 
 from __future__ import annotations
@@ -28,11 +45,18 @@ from __future__ import annotations
 import getpass
 import re
 import secrets
+import time
 from collections.abc import Callable
 from typing import TextIO
 
-from .grant import ApprovalDecision
+from .errors import ChallengeFailedRefusal, ReadingFloorRefusal
+from .grant import ApprovalDecision, AttentionEvidence
 from .proposal import RenderedProposal
+from .types import (
+    CHALLENGE_FIELDS,
+    READING_FLOOR_BASE_SECONDS,
+    READING_FLOOR_SECONDS_PER_KIB,
+)
 
 # The frame boundary is random per presentation, MIME-style. A fixed marker is
 # forgeable: producer prose containing the closing token would make a reader
@@ -75,12 +99,35 @@ def present(
         f"proposal age: {age_seconds:.1f}s "
         "(decision aid; not covered by the hash, not an integrity control)\n"
     )
-    out.write(
-        f"type '{APPROVE_TOKEN}' or '{DECLINE_TOKEN}' "
-        "(no single-key shortcut, by design): "
-    )
     out.flush()
     return boundary
+
+
+def reading_floor_seconds(byte_length: int) -> float:
+    """Floor for an approving answer, from the length of the hashed bytes.
+
+    A lower bound that catches reflexive approval; deliberately far below an
+    honest reading time, because a floor dressed up as proof of reading would
+    be theatre (PT15, P7).
+    """
+    return READING_FLOOR_BASE_SECONDS + READING_FLOOR_SECONDS_PER_KIB * (
+        byte_length / 1024
+    )
+
+
+def challenge_field(rendered: RenderedProposal) -> str:
+    """The field the approver must transcribe, selected by the action hash.
+
+    Deterministic per proposal, unpredictable before the canonical bytes
+    exist: the hash covers the bytes, so nothing upstream can steer which
+    field will be challenged without changing what the human is shown.
+    """
+    return CHALLENGE_FIELDS[int(rendered.action_hash, 16) % len(CHALLENGE_FIELDS)]
+
+
+def expected_transcription(rendered: RenderedProposal, field: str) -> str:
+    value = getattr(rendered.proposal, field)
+    return str(value)
 
 
 def decide(
@@ -88,16 +135,69 @@ def decide(
     age_seconds: float,
     out: TextIO,
     read_line: Callable[[], str],
+    clock: Callable[[], float] = time.monotonic,
+    on_challenge: Callable[[str], None] | None = None,
 ) -> ApprovalDecision:
-    """Present once, read one answer. Anything but the approve token declines."""
+    """Present, challenge, read one answer. Anything but the token declines.
+
+    ``on_challenge`` is called with the challenged field name after the
+    prompt is written and **before** the human answers, so a caller can
+    record intent ahead of the action (the ledger discipline PT9 rests on).
+
+    Raises ``ChallengeFailedRefusal`` when the transcription does not match
+    the rendered bytes, and ``ReadingFloorRefusal`` when an *approving*
+    answer arrives below the floor. Both leave no decision behind: the
+    proposal must be presented again from the top.
+    """
+    presented_at = clock()
     present(rendered, age_seconds, out)
+
+    field = challenge_field(rendered)
+    out.write(
+        f"attention challenge - transcribe the value of '{field}' "
+        "exactly as rendered above: "
+    )
+    out.flush()
+    if on_challenge is not None:
+        on_challenge(field)
+    transcription = read_line().strip()
+    if transcription != expected_transcription(rendered, field):
+        out.write("\n")
+        raise ChallengeFailedRefusal(
+            "transcription does not match the rendered bytes",
+            action_hash=rendered.action_hash,
+            field=field,
+        )
+
+    out.write(
+        f"type '{APPROVE_TOKEN}' or '{DECLINE_TOKEN}' "
+        "(no single-key shortcut, by design): "
+    )
+    out.flush()
     answer = read_line().strip().lower()
     out.write("\n")
+
+    approved = answer == APPROVE_TOKEN
+    elapsed = clock() - presented_at
+    floor = reading_floor_seconds(len(rendered.canonical_bytes))
+    if approved and elapsed < floor:
+        raise ReadingFloorRefusal(
+            "approval arrived below the reading floor",
+            action_hash=rendered.action_hash,
+            elapsed_seconds=round(elapsed, 3),
+            floor_seconds=round(floor, 3),
+        )
     return ApprovalDecision(
-        approved=answer == APPROVE_TOKEN,
+        approved=approved,
         action_hash=rendered.action_hash,
         target=rendered.proposal.target,
         approver_claim=approver_claim(),
+        attention=AttentionEvidence(
+            challenge_field=field,
+            challenge_passed=True,
+            elapsed_seconds=elapsed,
+            floor_seconds=floor,
+        ),
         authenticated=False,
     )
 

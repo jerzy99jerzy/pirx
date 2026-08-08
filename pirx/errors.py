@@ -84,6 +84,28 @@ class DeclinedRefusal(Refusal):
     event = "refusal.declined"
 
 
+# --- Attention (PT15) -------------------------------------------------------
+
+
+class ChallengeFailedRefusal(Refusal):
+    """The approver's transcription does not match the rendered bytes.
+
+    The event names the challenged field, never the expected value: the value
+    is on the approver's screen inside the canonical frame, and a ledger that
+    repeats it would teach a reader that the answer lives in the ledger.
+    """
+
+    event = "refusal.challenge_failed"
+
+
+class ReadingFloorRefusal(Refusal):
+    event = "refusal.reading_floor"
+
+
+class SessionBudgetRefusal(Refusal):
+    event = "refusal.session_budget"
+
+
 # --- Registry (PT7) ---------------------------------------------------------
 
 
