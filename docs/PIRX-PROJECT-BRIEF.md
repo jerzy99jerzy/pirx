@@ -6,15 +6,17 @@ Project brief and first-sprint specification. Self-contained: executable in a
 fresh session with no context beyond this file.
 
 ```
-Brief version:  1.6   (changelog in section 11)
-Repository:     github.com/jerzy99jerzy/pirx   (to be created)
+Brief version:  1.7   (changelog in section 11)
+Repository:     github.com/jerzy99jerzy/pirx
 Consumes:       cve-digest.verdict/1
 Produced by:    github.com/jerzy99jerzy/cve-digest (display codename Rappaport)
 Language:       Python 3.14, English throughout
 Workflow:       conventions listed in section 8, adopted from cve-digest
                 practice. No WORKFLOW.md is vendored here (see F32)
 Versioning:     0.MAJOR.FEATURE.MICRO, same four-segment scheme
-Status:         greenfield, nothing written
+Status:         shipped through 0.7.2.0; the authoritative version
+                state is STATUS.json and README's version plan, never
+                this line
 ```
 
 The name is Lem's pilot: the man who is trusted with a ship precisely because
@@ -315,7 +317,9 @@ Numbered `PT` to avoid collision with Rappaport's `T` series.
 | 0.6.0.0 | The justification-source abstraction: the verdict path becomes adapter #1 with zero behaviour change, proven by the existing suite passing unmodified; `CONTRACT.md` grows the abstraction. |
 | **0.7.0.0** | The gate, and the three coupled format changes it forces: `pirx.proposal/2` (justification in the preimage, `verdict` removed), `pirx.ledger/2` (field rename, both formats still readable), `pirx.intercepted-call/1` (adapter #2). Ships the pair settled decision 2 owed - HMAC grants **and** a durable spend store, together. `pirx-gate` intercepts `tools/call`, `pirx gate-approve` is the out-of-band surface, `pirx verify` reads either ledger format. Threat rows PT16-PT20; harness A37-A42d. Gated registry empty, as the capability registry was in 0.1.0.0. |
 | **0.7.1.0** | `pirx-gate` becomes a process: the stdio pump (framing, bounded frames, a downstream child, stdout that carries protocol only), harness A44-A47, and `docs/MANUAL.md` - the first operator-facing document the project has had. |
+| 0.7.2.0 | `docs/MANUAL.md` v2.0, the full operator manual, and `tools/manual_audit.py` - a fifth required CI check that fails when the manual's stated facts drift from the code. Shipped without a row in this table until brief v1.7, which is the drift the audit tools do not cover: they check pins and markers, not whether a shipped version was planned. |
 | 0.8.0.0 | `pirx verify` report including the fatigue signal derived from attention events (T8's new owner); attestation export mapping ledger evidence to EU AI Act art. 14 / ISO 42001 demonstrable-oversight language. |
+| 0.9.0.0 | Streamable HTTP transport for the gate, which is stdio-only today. Carries two things the transport forces rather than invites: the stdlib-only constraint, amended in this brief with reasons if the standard library cannot carry it honestly rather than worked around in code; and **PT14's trigger, which this version fires** - a payload crossing a network makes the detached signature a control row instead of an accepted risk. Re-homed from `docs/TODO.md` in brief v1.7, where it was scope living in a file whose own header excludes scope. |
 
 The ordering is deliberate and mirrors Rappaport's: the trust machinery ships
 and is tested against an adversary **before** the thing it protects exists. The
@@ -323,6 +327,59 @@ change from brief v1.0 is that the approval surface is part of that machinery,
 not a follow-up to it. A version that can issue grants but has no way for a
 human to approve one would have to invent a programmatic approval path, which
 is the exact anti-pattern section 1 exists to reject.
+
+### 6.1 What 1.0.0.0 means
+
+Through brief v1.6 the plan had a last row and no terminus. "How many sprints
+remain" was therefore unanswerable, not because the answer was large but
+because the denominator did not exist - an unowned condition of exactly the
+kind P12 refuses when it appears anywhere else in the project. This subsection
+gives it an owner. It is settled in the sense section 9 uses: amended by a
+brief bump with reasons, not re-argued mid-sprint.
+
+**1.0.0.0 is the version at which the project stops calling itself greenfield
+and starts making production claims.** It is reached when every condition
+below holds, and on no date:
+
+1. **Both transports are real.** The gate runs over stdio and over streamable
+   HTTP (0.9.0.0). A gate that only survives a child it spawned itself has not
+   met the deployment shape most operators actually have.
+2. **PT14 is a control row, not an accepted row.** Its own trigger fires at
+   0.9.0.0, so a 1.0.0.0 shipping a network transport with the payload still
+   unauthenticated would contradict the row that accepted the risk. The
+   detached signature comes due with the transport, not with the major digit.
+3. **The attentive-approval claim carries a measurement, not only a control.**
+   0.8.0.0's fatigue report exists, has been run against approvals from real
+   use rather than from the harness, and its wording is bounded by what that
+   sample supports (P7). The known trap is recorded already: `elapsed_seconds`
+   measures presence at a terminal, so the signal is built on the lower tail
+   of a distribution, never on a raw value.
+4. **No open item is owned by a version at or below 1.0.0.0**, in section 9's
+   deferral table or in `docs/TODO.md`. Trigger-owned items whose trigger has
+   not fired are not blockers; that is the difference between a deferral and
+   an omission.
+5. **Every audit the repository runs against its own documents is green**, and
+   no strength-word in the docs describes behaviour the suite does not
+   produce.
+
+**What 1.0.0.0 does not mean**, stated because the negative space is where
+this project's claims are load-bearing (P2):
+
+- Not the process split into a separate executor, and therefore not the Rust
+  question. That row keeps its own owner - the first multi-process version -
+  and 1.0.0.0 does not require one.
+- Not Windows. The identity launcher keeps its trigger; `docs/IDENTITY-WINDOWS.md`
+  exists precisely so the code is not written ahead of the research.
+- Not autonomy, not a threshold that skips approval, not a configurable
+  security limit. Those are not scope at any version, so no version can be
+  the one that grants them.
+- Not schema stability beyond P8. A breaking change after 1.0.0.0 gets a new
+  contract id exactly as before; the major digit buys the contract nothing.
+
+Counting from 0.7.2.0, that is three planned versions - 0.8.0.0, 0.9.0.0,
+1.0.0.0 - with the caveat that condition 3 depends on accumulating real
+approvals rather than on writing code, and is the one condition a sprint
+cannot close by itself.
 
 ---
 
@@ -519,6 +576,26 @@ the level of this brief:
 ---
 
 ## 11. Changelog
+
+**v1.7** - drift repair, and the terminus the plan never had.
+
+- **Section 6.1 defines 1.0.0.0.** Five conditions, four explicit
+  non-conditions. Until now the version plan ended at its last planned row,
+  which made "what is left" a question with no denominator - the project
+  enforced owned deferrals everywhere except on its own finish line.
+- **0.7.2.0 gets a row.** It shipped, was reviewed, and appeared in README's
+  plan while the brief's plan skipped from 0.7.1.0 to 0.8.0.0. `docs_audit.py`
+  did not catch it because it checks pins, review files, and the position
+  marker - not whether a shipped version was ever planned.
+- **0.9.0.0 promoted from `docs/TODO.md` to the version plan.** The streamable
+  HTTP transport changes what Pirx does, and TODO's own header excludes such
+  items. Its promotion also makes explicit what the TODO entry left implicit:
+  the transport fires PT14's trigger, so the detached signature is owed by
+  0.9.0.0.
+- Header corrected: the repository is no longer "to be created", and the
+  `Status` line no longer says "greenfield, nothing written" long after
+  the first ship. Version state is pointed at STATUS.json rather than
+  restated, so there is one owner for the question.
 
 **v1.6** - the pump, and the manual.
 
