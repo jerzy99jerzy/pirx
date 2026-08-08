@@ -105,3 +105,66 @@ def test_reopening_continues_the_chain(tmp_path: Path) -> None:
     seeded(path, 2)
     ledger.Ledger(path).append("test.event", index=99)
     assert ledger.verify(path) == 3
+
+
+# --- pirx.ledger/2 and the retained /1 reader --------------------------------
+
+
+def test_verify_reports_which_format_it_read(tmp_path) -> None:
+    from pirx.ledger import Ledger, verify_chain
+
+    book = tmp_path / "ledger.jsonl"
+    ledger = Ledger(book)
+    ledger.append("run.started", payload="x")
+    ledger.append("run.finished", exit_code=0)
+    verified = verify_chain(book)
+    assert verified.schema == "pirx.ledger/2"
+    assert verified.records == 2
+
+
+def test_a_v1_ledger_stays_verifiable(tmp_path) -> None:
+    """`/1` is retired as a *writer*, not as a *reader*. A hash chain nobody
+    can still check is not an audit trail, so the verifier keeps both
+    genesis sentinels and says which one it matched (P8)."""
+    import hashlib
+    import json
+
+    from pirx.ledger import _canonical, verify_chain
+    from pirx.types import LEDGER_GENESIS_SENTINEL_V1
+
+    prev = hashlib.sha256(LEDGER_GENESIS_SENTINEL_V1).hexdigest()
+    book = tmp_path / "old.jsonl"
+    lines = []
+    for seq in range(3):
+        record = {
+            "seq": seq,
+            "ts": "2026-01-01T00:00:00+00:00",
+            "prev_hash": prev,
+            "event": "grant.issued",
+            "payload": {"verdict": "cve-digest.verdict/1#CVE-2026-1001"},
+        }
+        line = _canonical(record)
+        lines.append(line.decode("utf-8"))
+        prev = hashlib.sha256(line).hexdigest()
+    book.write_text("\n".join(lines) + "\n")
+
+    verified = verify_chain(book)
+    assert verified.schema == "pirx.ledger/1"
+    assert verified.records == 3
+    # And the old field name is still readable, which is the whole point.
+    first = json.loads(book.read_text().splitlines()[0])
+    assert "verdict" in first["payload"]
+
+
+def test_a_chain_with_an_unknown_genesis_is_refused(tmp_path) -> None:
+    from pirx.errors import LedgerChainRefusal
+    from pirx.ledger import _canonical, verify_chain
+
+    book = tmp_path / "alien.jsonl"
+    record = {
+        "seq": 0, "ts": "2026-01-01T00:00:00+00:00", "prev_hash": "f" * 64,
+        "event": "run.started", "payload": {},
+    }
+    book.write_bytes(_canonical(record) + b"\n")
+    with pytest.raises(LedgerChainRefusal, match="genesis"):
+        verify_chain(book)

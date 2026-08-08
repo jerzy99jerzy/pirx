@@ -55,3 +55,30 @@ class FakeClock:
 
     def advance(self, seconds: float) -> None:
         self.now += seconds
+
+
+def justification(cve: str = "CVE-2026-1001"):
+    """A verdict justification with no evidence object, for tests that build
+    a proposal from an id rather than from a parsed verdict."""
+    from pirx.justification import verdict_justification
+    from pirx.types import VerdictId
+
+    return verdict_justification(VerdictId(f"cve-digest.verdict/1#{cve}"))
+
+
+def grant_issuer(clock, tmp_path, ttl: float | None = None):
+    """An issuer with a test key and a real durable spend store.
+
+    The store is real rather than faked: single-use is the property under
+    test in half the suite, and a fake set would test the fake.
+    """
+    from pirx.grant import GrantIssuer
+    from pirx.spendstore import SpendStore
+    from pirx.types import GRANT_TTL_SECONDS
+
+    return GrantIssuer(
+        clock=clock,
+        key=b"k" * 32,
+        store=SpendStore(tmp_path / "spent"),
+        ttl_seconds=GRANT_TTL_SECONDS if ttl is None else ttl,
+    )

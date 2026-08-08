@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from conftest import FakeClock, bundle
+from conftest import FakeClock, bundle, grant_issuer
 
 from pirx import consumer, ledger, proposal, proposer
 from pirx.errors import ModelRefusal
@@ -143,8 +143,10 @@ def test_a26_model_failure_refuses_it_does_not_fall_back(
     model = ScriptedModel(
         raises=ModelRefusal("model call failed", status=503, cve_id="X")
     )
+    clock = FakeClock()
     sess = Session(
-        ledger.Ledger(book), FakeClock(), PRODUCTION_REGISTRY, model=model
+        ledger.Ledger(book), clock, PRODUCTION_REGISTRY,
+        issuer=grant_issuer(clock, tmp_path), model=model,
     )
     parsed = sess.consume(bundle())
     with pytest.raises(ModelRefusal):
@@ -160,8 +162,10 @@ def test_a27_the_ledger_records_which_mind_proposed(tmp_path: Path) -> None:
     recorded either way rather than inferred from an environment variable."""
     for model, expected in ((None, False), (ScriptedModel(), True)):
         book = tmp_path / f"ledger-{expected}.jsonl"
+        clock = FakeClock()
         sess = Session(
-            ledger.Ledger(book), FakeClock(), PRODUCTION_REGISTRY, model=model
+            ledger.Ledger(book), clock, PRODUCTION_REGISTRY,
+            issuer=grant_issuer(clock, tmp_path / str(expected)), model=model,
         )
         sess.propose(sess.consume(bundle()))
         modes = [

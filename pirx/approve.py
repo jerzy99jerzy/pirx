@@ -126,8 +126,16 @@ def challenge_field(rendered: RenderedProposal) -> str:
 
 
 def expected_transcription(rendered: RenderedProposal, field: str) -> str:
-    value = getattr(rendered.proposal, field)
-    return str(value)
+    """The value the approver must transcribe, as the rendering prints it.
+
+    ``justification`` resolves to the reference line rather than the whole
+    object: it is the identifier a human can locate by eye in the frame, and
+    asking someone to retype a 64-character digest would train them to copy
+    and paste, which is the habit the challenge exists to break.
+    """
+    if field == "justification":
+        return str(rendered.proposal.justification.ref)
+    return str(getattr(rendered.proposal, field))
 
 
 def decide(

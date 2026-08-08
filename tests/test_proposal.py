@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from pirx.justification import verdict_justification
 from pirx.proposal import Proposal, action_hash, escape_prose, prepare, render
 from pirx.types import TargetId, UntrustedProse, VerdictId
 
@@ -12,7 +13,9 @@ def make(**over: object) -> Proposal:
     base: dict[str, object] = {
         "action": "ticket.comment",
         "target": TargetId("ticket:CVE-2026-1001"),
-        "verdict": VerdictId("cve-digest.verdict/1#CVE-2026-1001"),
+        "justification": verdict_justification(
+            VerdictId("cve-digest.verdict/1#CVE-2026-1001")
+        ),
         "params": {"cve_id": "CVE-2026-1001", "priority": "P1"},
         "prose": {"triage_note": UntrustedProse("plain note")},
     }

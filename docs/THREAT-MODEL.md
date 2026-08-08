@@ -200,3 +200,76 @@ latency record makes the pattern visible to an auditor.
 `grant.py` (issuance), `session.py`/`cli.py` (events).
 **Measured by** `test_approve.py` (PT15 block), `test_grant.py` (PT15
 block), and harness attacks A31-A35.
+
+## PT16 - Tool-definition drift between approval and execution (rug-pull)
+
+**Control.** The hash of the tool definition in force at approval time is
+part of the justification and therefore inside the action hash, so a
+definition that changes invalidates every outstanding grant against it by
+construction rather than by policy. The gate additionally fingerprints what
+it observed against the hash the registry entry was reviewed with, and a
+mismatch is `refusal.tool_definition_drift`. Neither check leans on the
+client re-fetching: the 2026-07-28 revision made `tools/list` results
+cacheable (`ttlMs`, `cacheScope`), and a gate is precisely the shared
+intermediary that caching talks about, so it computes fingerprints itself and
+treats a cached catalogue as evidence of nothing.
+**Lives in** `justification.py`, `mcp/gate.py`. **Measured by** harness A40,
+A40b, A42d.
+
+## PT17 - Approval routed through the party under review
+
+**Control.** The approval surface is a Pirx-owned process reading a queue on
+disk; no primitive of the intercepted protocol carries an approval decision.
+MRTR (`resultType: "input_required"`) is used **only** as a poll ticket: the
+result carries an opaque identifier in `requestState` and nothing else - no
+proposal bytes, no action hash, no field a client could fill with an
+approval - and `inputResponses` are never read as evidence of anything.
+MRTR renders in the calling agent's host, which is the trust domain of the
+party whose call is being gated; an approval prompt delivered there is PT6
+one layer up.
+**Lives in** `mcp/gate.py`, `gate_approve.py`. **Measured by** harness A38,
+A38b.
+
+## PT18 - Gate bypass: the agent host reaches the downstream server directly
+
+**Accepted, not controlled, and scoped honestly.** A stdio gate cannot
+prevent a host from launching the downstream server itself. Prevention lives
+in the environment: downstream credentials held only in the gate's
+environment, and EDR allowlisting keyed on the identity launcher's
+attributable process. What the gate provides is **detectability** - it writes
+`gate.pending`, `gate.awaiting_approval`, and `gate.forwarded_granted` before
+and after every gated call, so an action that landed with no grant event has
+no ledger trail, which is exactly the gap PT9 makes visible. Claiming
+prevention here would be theatre, in the same register as "does not
+authenticate the human". **Trigger:** the moment the gate runs on a host the
+approver does not control, this row needs attestation the launcher cannot
+currently provide.
+
+## PT19 - Process-identity forgery on the approver's host
+
+**Accepted, not controlled.** An adversary with code execution at the same
+privilege level can present a process that looks like the gate. Research on
+Windows established why the macOS story does not transfer: parent-PID
+spoofing is an established technique, detection content in the wild has to
+cope with process-create records whose parent executable is absent, and the
+trust architecture itself is subvertible below the API by tampering with SIP
+components and trust providers, which misleads `WinVerifyTrust` and the
+products that rely on it. Two further platform facts shape the identity
+artefact rather than this row: the Authenticode hash is not a file hash (it
+covers selected PE sections in a specific order), and `ProcessGuid` rather
+than the PID is the correlation key, because PIDs are reused. **Evidence, not
+prevention:** the ledger is hash-chained and written by the real gate, so a
+forged gate produces actions with no chain-consistent record. **Trigger:** a
+host the approver does not control, same as PT18.
+
+## PT20 - Header/body divergence at the gate
+
+**Control.** The 2026-07-28 revision requires `Mcp-Method` and `Mcp-Name` on
+Streamable HTTP POSTs so gateways can route without parsing bodies. Pirx
+parses the body anyway and refuses any disagreement with
+`refusal.header_mismatch`, never a normalisation. The reason is the thesis:
+what is hashed must be what executes, so a gate that decides "is this tool
+gated?" from a header while forwarding a body naming a different tool has
+re-created the shown-versus-executed divergence at the transport layer.
+Headers may be used for routing and metrics only.
+**Lives in** `mcp/protocol.py`. **Measured by** harness A39, A39b.

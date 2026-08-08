@@ -106,6 +106,53 @@ class SessionBudgetRefusal(Refusal):
     event = "refusal.session_budget"
 
 
+# --- Grant transport (0.7.0.0) ----------------------------------------------
+
+
+class MalformedGrantRefusal(Refusal):
+    """A transported grant whose shape is wrong.
+
+    Distinct from a MAC failure: shape is checked before authenticity so that
+    a malformed file cannot reach the comparison at all, and so the ledger
+    distinguishes "someone wrote junk here" from "someone forged a grant".
+    """
+
+    event = "refusal.malformed_grant"
+
+
+class GrantMacRefusal(Refusal):
+    event = "refusal.grant_mac"
+
+
+# --- Gate transport (0.7.0.0) -----------------------------------------------
+
+
+class ProtocolRefusal(Refusal):
+    """A JSON-RPC message the gate cannot establish the meaning of."""
+
+    event = "refusal.protocol"
+
+
+class UnsupportedProtocolVersionRefusal(Refusal):
+    event = "refusal.protocol_version"
+
+
+class HeaderMismatchRefusal(Refusal):
+    """Routing headers disagree with the body (PT20).
+
+    Refused rather than normalised: the body is what gets hashed, shown, and
+    executed, so a header that says something else is either a bug in a
+    client or an attempt to have the gate reason about one message while
+    forwarding another.
+    """
+
+    event = "refusal.header_mismatch"
+
+
+class ToolDefinitionDriftRefusal(Refusal):
+    event = "refusal.tool_definition_drift"
+
+
 # --- Registry (PT7) ---------------------------------------------------------
 
 

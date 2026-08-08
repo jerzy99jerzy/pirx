@@ -1,56 +1,65 @@
-"""Why an action is warranted, as a type the renderer and the grant can carry.
+"""Why an action is warranted, as a type the renderer and the grant carry.
 
 Through 0.5.0.0 the answer was always "because a `cve-digest.verdict/1` item
-said so", and `Proposal.verdict` held that answer directly. The gate
-(0.7.0.0) intercepts an MCP `tools/call`, which has no verdict: the
-justification is the intercepted request itself. Rather than special-case a
-second shape inside the renderer later, the *shape of an answer* becomes a
-type now, while there is exactly one implementation and the existing suite
-can prove nothing moved.
+said so", and `Proposal.verdict` held it directly. 0.6.0.0 made the *shape*
+of an answer a type while there was still one implementation. 0.7.0.0 lands
+the second implementation - an intercepted MCP `tools/call` - and with it the
+consequence the earlier versions deferred: `verdict` is gone as a field,
+because a field named `verdict` holding `mcp:tools/call#a1b2c3` is a lie in
+the type system that propagates into the grant and into the ledger an auditor
+reads (review finding F43).
 
-A `Justification` carries four things:
+A `Justification` carries four things, all of them in the hash preimage from
+`pirx.proposal/2`:
 
-  - ``schema`` - the contract id of the source that produced it. Never
-    repurposed; a breaking change to a source is a new id (P8).
-  - ``ref`` - the identifier a human reads and the action hash covers.
-  - ``digest`` - SHA-256 over the source's own canonical evidence bytes.
-  - ``label`` plus ``extra`` - how the source appears in the rendered
-    proposal, so the renderer owns ordering, escaping, and hashing while the
-    source owns what its evidence is called.
-
-**The digest is carried and not yet hashed, deliberately.** Adding it to the
-preimage would change every action hash in the verdict path, which is a wire
-format change and therefore a new render schema id, not a silent edit. It
-enters the preimage as `pirx.proposal/2` with the gate, where it does real
-work (binding a grant to the tool definition in force at approval time,
-PT16). Until then a test asserts its absence from the preimage, so "carried,
-not hashed" is an executable claim rather than a comment (P7, and the same
-discipline PT14's acceptance uses).
+  - ``schema`` - the contract id of the source. Never repurposed (P8).
+  - ``ref`` - the identifier a human reads.
+  - ``digest`` - SHA-256 over the source's own canonical evidence bytes, or
+    empty when the proposal was built from a reference with no evidence
+    object behind it. Empty means "not computed here", never "computed and
+    equal to nothing".
+  - ``extra`` - additional deterministic lines the source contributes, in the
+    order it gives them. For the intercepted call these carry the tool name,
+    the canonical arguments, and the hash of the tool definition in force at
+    approval time, which is what makes a mid-approval definition swap a hash
+    mismatch rather than a policy question (PT16).
 
 Does NOT:
-  - decide anything. A justification explains; it never selects an action,
-    a target, or a parameter.
+  - decide anything. A justification explains; it never selects an action, a
+    target, or a parameter.
   - carry prose. Model or producer text travels as ``UntrustedProse`` in the
-    proposal's fenced section, and a justification's fields are all
-    deterministic (PT2).
+    proposal's fenced section (PT2). A source that wants to explain itself in
+    sentences is refused here, not accommodated.
   - authenticate its source. Whether the evidence is genuine is the
-    consumer's validation problem (PT1) and, for origin, PT14's named
-    acceptance.
+    consumer's validation problem (PT1) and, for origin, PT14's acceptance.
 """
 
 from __future__ import annotations
 
 import hashlib
+import json
 from dataclasses import dataclass, field
-from typing import Protocol
+from typing import Any, Protocol
 
 from .consumer import Verdict
-from .types import ACCEPTED_VERDICT_SCHEMA, VerdictId
+from .errors import BoundsRefusal
+from .types import (
+    ACCEPTED_VERDICT_SCHEMA,
+    INTERCEPTED_CALL_SCHEMA,
+    MAX_CALL_ARGUMENT_CHARS,
+    JustificationRef,
+    VerdictId,
+)
 
-#: Render label used by the verdict adapter. Fixed as a constant because
-#: changing it changes every action hash in the verdict path, which is a
-#: wire-format change and must look like one at the call site.
-VERDICT_LABEL = "verdict"
+#: Field prefix in the rendered preimage. One prefix for every source, so a
+#: reader who has seen one proposal can read a proposal from a source that did
+#: not exist when they learned the format.
+RENDER_PREFIX = "justification"
+
+#: Printed where a digest is absent. A visible marker rather than an empty
+#: value: a blank after a colon reads as a rendering bug, and a human should
+#: not have to decide whether they are looking at one.
+NO_DIGEST = "-"
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,39 +67,38 @@ class Justification:
     """One source's answer to "why is this action warranted?"."""
 
     schema: str
-    ref: str
+    ref: JustificationRef
     digest: str
-    label: str
-    #: Additional deterministic ``key: value`` lines the source contributes
-    #: to the rendering, in the order given. Empty for the verdict adapter,
-    #: which is what keeps `pirx.proposal/1` byte-identical.
     extra: tuple[tuple[str, str], ...] = field(default_factory=tuple)
 
     def render_lines(self) -> tuple[str, ...]:
-        """The source's contribution to the canonical preimage."""
-        return (f"{self.label}: {self.ref}",) + tuple(
-            f"{key}: {value}" for key, value in self.extra
+        """This source's contribution to the canonical preimage."""
+        head = (
+            f"{RENDER_PREFIX}.schema: {self.schema}",
+            f"{RENDER_PREFIX}.ref: {self.ref}",
+            f"{RENDER_PREFIX}.digest: {self.digest or NO_DIGEST}",
+        )
+        return head + tuple(
+            f"{RENDER_PREFIX}.{key}: {value}" for key, value in self.extra
         )
 
 
 class JustificationSource(Protocol):
-    """Anything that can explain why an action is warranted.
-
-    One implementation today (`VerdictJustificationSource`); the gate's
-    intercepted-call source is the second, and the protocol exists so that
-    landing it is an addition rather than a rewrite of the renderer.
-    """
+    """Anything that can explain why an action is warranted."""
 
     def justify(self) -> Justification: ...
+
+
+# --- Adapter #1: a cve-digest verdict ---------------------------------------
 
 
 def verdict_evidence(verdict: Verdict) -> bytes:
     """Canonical evidence bytes for a verdict: deterministic fields only.
 
     Prose is excluded, not by oversight: a digest over model-authored text
-    would make the evidence identity of a verdict depend on what a model
-    wrote about it, and PT2 exists to keep prose out of every position where
-    it could influence anything.
+    would make the evidence identity of a verdict depend on what a model wrote
+    about it, and PT2 keeps prose out of every position where it could
+    influence anything.
     """
     lines = [
         f"schema: {ACCEPTED_VERDICT_SCHEMA}",
@@ -110,37 +118,94 @@ def verdict_evidence(verdict: Verdict) -> bytes:
 
 @dataclass(frozen=True, slots=True)
 class VerdictJustificationSource:
-    """Adapter #1: a `cve-digest.verdict/1` item.
-
-    Renders exactly the line the verdict path has rendered since 0.1.0.0, so
-    every action hash produced before this module existed is still produced
-    after it. That is the sprint's acceptance criterion, and
-    `test_justification.py` holds it as golden bytes rather than as a claim.
-    """
+    """Adapter #1: a `cve-digest.verdict/1` item."""
 
     verdict: Verdict
 
     def justify(self) -> Justification:
         return Justification(
             schema=ACCEPTED_VERDICT_SCHEMA,
-            ref=str(self.verdict.verdict_id),
+            ref=JustificationRef(str(self.verdict.verdict_id)),
             digest=hashlib.sha256(verdict_evidence(self.verdict)).hexdigest(),
-            label=VERDICT_LABEL,
         )
 
 
-def from_verdict_id(verdict_id: VerdictId) -> Justification:
-    """A justification for a proposal built from an id alone.
+def verdict_justification(verdict_id: VerdictId) -> Justification:
+    """A justification built from a verdict id with no evidence object.
 
-    The path a `Proposal` takes when constructed with `verdict=` and no
-    source object - which every caller through 0.5.0.0 does, and which the
-    tests still do. The digest is empty because there is no evidence object
-    to hash: an empty digest means "not computed here", never "computed and
-    equal to nothing", and the type's consumers must treat it as absent.
+    Used where a caller holds the id but not the parsed verdict. The digest is
+    empty and renders as a visible marker, so a reader can tell "no evidence
+    was hashed here" from "evidence was hashed and matched".
     """
     return Justification(
         schema=ACCEPTED_VERDICT_SCHEMA,
-        ref=str(verdict_id),
+        ref=JustificationRef(str(verdict_id)),
         digest="",
-        label=VERDICT_LABEL,
     )
+
+
+# --- Adapter #2: an intercepted MCP tool call -------------------------------
+
+
+def canonical_arguments(arguments: dict[str, Any]) -> str:
+    """One serialisation of a call's arguments: sorted keys, compact.
+
+    The same string is hashed and shown, so an argument set that renders one
+    way and executes another is not representable (P10, at the gate).
+    """
+    text = json.dumps(arguments, sort_keys=True, separators=(",", ":"))
+    if len(text) > MAX_CALL_ARGUMENT_CHARS:
+        raise BoundsRefusal(
+            "intercepted call arguments exceed the render bound",
+            chars=len(text),
+            bound=MAX_CALL_ARGUMENT_CHARS,
+        )
+    return text
+
+
+def call_evidence(
+    tool: str, arguments: dict[str, Any], tool_definition_hash: str
+) -> bytes:
+    """Canonical evidence bytes for an intercepted call."""
+    lines = [
+        f"schema: {INTERCEPTED_CALL_SCHEMA}",
+        f"tool: {tool}",
+        f"tool_definition_hash: {tool_definition_hash}",
+        f"arguments: {canonical_arguments(arguments)}",
+    ]
+    return ("\n".join(lines) + "\n").encode("utf-8")
+
+
+@dataclass(frozen=True, slots=True)
+class InterceptedCallSource:
+    """Adapter #2: the `tools/call` request the gate is holding.
+
+    The evidence *is* the request: there is no upstream ranking, no verdict,
+    and nothing that ordered this action except the agent that asked for it.
+    Naming that plainly is the point - a human approving a gated call is
+    approving an agent's request, and the rendering says so rather than
+    dressing the request up as a finding.
+
+    ``tool_definition_hash`` enters the justification and therefore the action
+    hash, so a tool whose definition changes between approval and execution
+    invalidates every outstanding grant against it by construction rather than
+    by policy (PT16).
+    """
+
+    tool: str
+    arguments: dict[str, Any]
+    tool_definition_hash: str
+
+    def justify(self) -> Justification:
+        evidence = call_evidence(self.tool, self.arguments, self.tool_definition_hash)
+        digest = hashlib.sha256(evidence).hexdigest()
+        return Justification(
+            schema=INTERCEPTED_CALL_SCHEMA,
+            ref=JustificationRef(f"mcp:tools/call#{digest[:16]}"),
+            digest=digest,
+            extra=(
+                ("tool", self.tool),
+                ("tool_definition_hash", self.tool_definition_hash),
+                ("arguments", canonical_arguments(self.arguments)),
+            ),
+        )

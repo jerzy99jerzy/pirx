@@ -1,13 +1,14 @@
 # Pirx - architecture assumptions
 
 ```
-Document:   docs/ARCHITECTURE.md, version 1.4
-Refers to:  PIRX-PROJECT-BRIEF.md v1.4 (thesis, threat model PT1-PT15,
+Document:   docs/ARCHITECTURE.md, version 2.0
+Refers to:  PIRX-PROJECT-BRIEF.md v1.5 (thesis, threat model PT1-PT20,
             version plan), FAMILY.md v1.0 (practices P1-P13),
             PIRX-GATE-DESIGN.md v1.1 (0.5.0.0-0.8.0.0 direction)
-Covers:     sprint 0.1.0.0 (trust loop), 0.2.0.0 (hostile-agent harness),
-            0.3.0.0 (first capability), 0.5.0.0 (attentive approval, A17),
-            0.6.0.0 (justification abstraction, A18)
+Covers:     every shipped sprint: 0.1.0.0 (trust loop), 0.2.0.0 (harness),
+            0.3.0.0 (first capability), 0.4.0.0 (model entry), 0.5.0.0
+            (attentive approval), 0.6.0.0 (justification abstraction),
+            0.7.0.0 (the gate, and three format changes)
 Authority:  implementation level only. Where this document appears to
             conflict with the brief or a threat-model row, the brief wins
             and the conflict is a finding (FAMILY.md section 4). Settled
@@ -23,22 +24,56 @@ here *before* the code exists, which is the only time disagreement is cheap.
 
 ## 1. System shape
 
-### 1.1 One process, one run, one payload
+### 1.1 Two topologies, and the day the first stopped being enough
 
-For all three sprints, Pirx is a single Python process invoked by a human:
+**Through 0.6.0.0: one process, one run, one payload.**
 
 ```
 pirx run path/to/verdict.json
 ```
 
-One invocation consumes one `cve-digest.verdict/1` payload, walks it through
-the pipeline below, and exits. Nothing survives the process except the ledger
-file and (from 0.3.0.0) whatever a granted capability wrote to the target
-system. There is no daemon, no queue consumer, no scheduler. This is not a
-placeholder for a service; it is the topology that makes brief section 9's
-settled decision - grant integrity by object identity - *correct* rather than
-merely acceptable. The day this stops being one process is the day the HMAC
-and persistent spend store land together (settled decision 2).
+One invocation consumed one `cve-digest.verdict/1` payload, walked it through
+the pipeline below, and exited. Nothing survived the process except the ledger
+file and whatever a granted capability wrote to the target system. No daemon,
+no queue consumer, no scheduler. That was not a placeholder for a service; it
+was the topology that made settled decision 1 - grant integrity by object
+identity - *correct* rather than merely acceptable.
+
+**From 0.7.0.0: two processes, because the gate cannot host its own prompt.**
+
+An MCP gate is launched by an agent host and speaks JSON-RPC on its stdin and
+stdout. Those pipes are not available for a human, and an approval routed back
+through the protocol would render inside the trust domain of the party under
+review (PT17). So the approver sits at a second process:
+
+```
+pirx-gate                      # spawned by the agent host, holds the call
+pirx gate-approve <gate-dir>   # a human, on a terminal the gate does not own
+```
+
+This is the day settled decision 2 came due, and it was paid in full and in
+one version, as the decision said it must be: **an HMAC over the canonical
+grant scope and a durable spend store, together** (P5). Either alone is
+unsound - a stateless-verifiable grant with no durable spend record is
+replayable across restarts, and a durable record without a verifiable grant
+protects nothing.
+
+Two consequences follow, and both are costs rather than features:
+
+- **Expiry moved from the monotonic clock to the wall clock.** A monotonic
+  deadline is meaningless in a process that did not issue it. The exposure is
+  named: an operator who moves the system clock backwards extends a grant's
+  life. That is smaller than a deadline no reader can evaluate, and it is a
+  line in PT4 rather than a silence.
+- **A grant became a copyable artefact.** The MAC makes forgery hard; the
+  spend store makes a copy useless; nothing makes the file secret, and no
+  part of the design assumes it is.
+
+`pirx run` keeps the old topology exactly, and the switch is not a flag: with
+no key file configured the runner generates an **ephemeral** key, so grants
+are meaningless outside the process, which is the 0.1.0.0 property restated
+rather than lost. A flag that selects a security property is a security
+property that gets selected wrongly at 02:00 (P6).
 
 ### 1.2 The pipeline and its trust zones
 
@@ -374,12 +409,166 @@ constant (P6).
 
 ---
 
+## 5A. Sprint 0.4.0.0 - the model enters the proposer
+
+### 5A.1 What changed
+
+The proposer gained an optional model that may do exactly two things: select
+an action **by exact string membership** in `KNOWN_INTENTS`, and write a
+rationale. It supplies no parameter, no target, and no authority. An
+out-of-contract reply is a `ModelRefusal` and the run stops; it does not fall
+back to the deterministic mapping, because a silent downgrade would make "a
+model chose this" and "code chose this" indistinguishable on the approval
+screen (A26).
+
+### 5A.2 The untrusted-prose fence
+
+Escaping already stopped prose from forging a field line. The fence adds what
+escaping cannot: a labelled boundary telling a reader where text authored on
+the far side of a trust boundary begins and ends, with its origin named
+(`producer` or `pirx-model`). Its tag is the shortest `~~~pirx-untrusted-N`
+absent from the enclosed text, so it is unforgeable by content and identical
+for identical input - a random boundary inside the hash preimage would
+destroy determinism (A14, A29).
+
+### 5A.3 The boundary the scrape enforces
+
+Nothing under `model/` may import grant, capability, ledger, or session
+machinery. The model is a text source that happens to be consulted before
+rendering; it is not a participant in the trust loop.
+
+---
+
+## 5B. Sprint 0.5.0.0 - attentive approval (PT15)
+
+### 5B.1 The problem this version admits
+
+The thesis rested on the human *reading* the bytes, not merely being *shown*
+them. The ledger proved the second and said nothing about the first. At
+volume, approval degrades into reflexive confirmation while the audit trail
+continues to look clean - the weakest link in the design, promoted from an
+uncomfortable observation to a threat row.
+
+### 5B.2 The three controls, and what each is worth
+
+| Control | Mechanism | Honest strength |
+|---|---|---|
+| Content-derived challenge | The approver transcribes one field selected from `CHALLENGE_FIELDS` **by the action hash**, so it cannot be predicted before the bytes exist | Proves the approver located content in the exact hashed bytes. Beatable by tooling; PT15 says so |
+| Reading floor | An approving answer below `base + per-KiB × length` seconds is refused; a decline is not floor-checked | A lower bound that catches reflexive approval. A floor high enough to prove reading would be theatre |
+| Session grant budget | `MAX_GRANTS_PER_SESSION` issues per issuer, a constant (P6); refused issues do not consume it | Real, and in the single-run topology PT13's proposal budget binds first. Its bite arrives with the long-lived gate surface |
+
+### 5B.3 Measured at the surface, enforced at the issuer
+
+`AttentionEvidence` is a required field of `ApprovalDecision` and is verified
+again inside `GrantIssuer.issue` (A17). The surface is where attention is
+*measured*; it is not the only place it is *enforced*, so a decision object
+built in code cannot route around it (A35).
+
+**The residual, stated where it cannot be inflated:** this demonstrates that
+the approver operated on the exact hashed bytes. It does not demonstrate
+comprehension, and no document in this repository may write "understood"
+where the measurement supports only "read" (P7).
+
+---
+
+## 5C. Sprint 0.6.0.0 - the justification abstraction
+
+Why an action is warranted became a type produced by a source adapter, while
+there was still exactly one implementation and the existing suite could prove
+nothing had moved. The verdict adapter rendered the pre-abstraction line
+byte-for-byte; the 156 tests of 0.5.0.0 passed unmodified, and a golden
+preimage was added because "unmodified tests still pass" proves only that
+nothing changed *that they looked at* (F41).
+
+The evidence digest was computed and deliberately kept **out** of the
+preimage, with a test asserting its absence, because putting it in is a
+wire-format change and therefore a new schema id - not an edit (F42). That
+debt comes due in the next section.
+
+---
+
+## 5D. Sprint 0.7.0.0 - the gate, and three format changes
+
+### 5D.1 Why three ids move at once
+
+Adapter #2 makes `Proposal.verdict` not merely redundant but *false*: an
+intercepted `tools/call` has no verdict, and a field named `verdict` holding
+`mcp:tools/call#a1b2c3` lies to the type system and then to the auditor
+reading the ledger (F43). Removing it changes the grant scope and the ledger's
+field names, and admitting the evidence digest into the preimage changes every
+action hash. Three coupled changes, therefore one version, never three
+(P5's spirit, P8's rule):
+
+| Change | New id | Why not an edit to the old id |
+|---|---|---|
+| Justification schema, ref, and digest enter the preimage | `pirx.proposal/2` | Every action hash changes; a grant issued under `/1` must not verify under `/2` |
+| `verdict` becomes `justification` in grant scope and ledger events | `pirx.ledger/2` | An auditor querying field names is a consumer of this format |
+| The intercepted call becomes a source | `pirx.intercepted-call/1` | New source, new id, never a repurposed one |
+
+`/1` is retired as a **writer**, not as a **reader**: `verify_chain` keeps both
+genesis sentinels and reports which it matched. A hash chain nobody can still
+check is not an audit trail.
+
+### 5D.2 The gate's data path
+
+```
+agent host --tools/call--> gate
+    parse as hostile input        protocol.py   (version enumerated, PT1)
+    headers vs body               protocol.py   (PT20: body is authoritative)
+    ungated tool                  -> forward verbatim, gate.forwarded_ungated
+    gated tool
+        tool-definition fingerprint vs reviewed hash  (PT16)
+        render canonical proposal (adapter #2)
+        write pending file        -> gate.pending
+        grant present?
+            no  -> MRTR poll ticket, gate.awaiting_approval
+            yes -> verify MAC, coverage, target, deadline; burn nonce
+                   forward the ORIGINAL bytes, gate.forwarded_granted
+```
+
+Three rules make this the design rather than an implementation detail:
+
+1. **The body is authoritative.** Gating decisions and the justification come
+   from the parsed body, never the routing headers. What is hashed is what is
+   forwarded - the gate re-emits the bytes it received, not a re-serialisation
+   of its own understanding (PT20, A39).
+2. **MRTR is a poll ticket, never an approval channel.** The `input_required`
+   result carries an opaque ticket in `requestState` and nothing else: no
+   proposal bytes, no action hash, no field a client could fill with an
+   approval, and `inputResponses` are never read as evidence (PT17, A38).
+3. **The gate cannot prevent its own bypass, and says so.** An agent host that
+   launches the downstream server directly never passes here. Prevention lives
+   in the environment - downstream credentials held only in the gate's
+   environment, allowlisting keyed on the identity launcher. What the gate
+   provides is evidence: a forwarded action with no grant event has no ledger
+   trail (PT18).
+
+### 5D.3 The gated registry is empty
+
+Exactly as the capability registry was empty in 0.1.0.0. The machinery ships
+and is attacked before it guards anything (P3). Registering a tool is a code
+change that pins the definition hash the operator reviewed, and a downstream
+definition that no longer matches is drift, refused rather than silently
+re-approved.
+
+### 5D.4 What the gate is not
+
+No policy engine, no risk scoring, no rule language, no discovery, no
+inventory, no DLP, no payload inspection for injection or PII. That field is
+funded and taken. Pirx competes on the evidentiary quality of a single
+approval, and every line of scope above would dilute the only claim it has.
+
+---
+
 ## 6. Cross-sprint invariants
 
 True in every sprint this document covers, and tested in each:
 
 1. The registry's contents are the complete write surface; the scrape proves
    no other module can reach network or filesystem write (PT7 as tripwire).
+   From 0.7.0.0 the write allowlist holds four modules, and each is there for
+   a stated reason: none of them writes to a *target system*. A future entry
+   that does is a finding, not a widening.
 2. Every refusal is a typed event in the ledger; no code path downgrades a
    refusal to a log line (P11).
 3. The bytes a human saw are the bytes that were hashed, proven by stdout
@@ -392,6 +581,11 @@ True in every sprint this document covers, and tested in each:
    (PT10, P9, FAMILY.md section 1).
 6. Security limits are constants; the diff that makes one configurable is
    rejected by review with P6 named in the rejection.
+7. From 0.7.0.0: a refusal's life may end only at a **process entry point**,
+   of which there are three (`cli.py`, `mcp/gate.py`, `gate_approve.py`).
+   Everywhere else a caught refusal is recorded and re-raised (P11).
+8. From 0.7.0.0: the approval surface is never the intercepted protocol. No
+   MCP primitive carries an approval decision, in any version (PT17).
 
 ---
 
@@ -421,3 +615,6 @@ a version bump, not a discussion in a pull request.
 | A16 | A16 supersedes the 4.2 cross-run sketch: an in-process spent-set is per-process and A11 documents that, rather than claiming a defence the design does not provide (F33) |
 | A17 | `AttentionEvidence` is a required field of `ApprovalDecision`, measured at the approval surface and verified again at grant issuance; the session grant budget lives in the issuer | The surface is where attention is measured, not the only place it is enforced: a decision object fabricated in code cannot buy a grant without evidence (PT15). Refused issues do not consume the session budget, so refusals cannot be used to starve the approver of authority |
 | A18 | Why an action is warranted is a `Justification` produced by a source adapter; the renderer asks the justification for its own lines | A second evidence source (the gate's intercepted call, 0.7.0.0) is an addition, not a renderer rewrite. The verdict adapter renders exactly the pre-abstraction line, so `pirx.proposal/1` action hashes are unchanged - held as golden bytes, not asserted. The evidence digest is carried and deliberately *not* in the preimage: putting it there is a wire-format change and therefore a new render schema id (P8), owned by 0.7.0.0 |
+| A19 | The grant issuer is injected into `Session` and `Gate`, never constructed by them | An issuer holds a key and a durable store; a component that built its own would be deciding where authority is recorded. Injection puts that choice at the wiring site, where a reviewer sees it |
+| A20 | The gate forwards the **received bytes**, never a re-serialisation | A re-serialisation is a second rendering path, and two renderings of one message are the shown-versus-executed divergence P10 exists to refuse. It also means the gate cannot accidentally normalise a body it gated on |
+| A21 | `gate_approve` parses the challenged fields back out of the canonical bytes and re-checks the hash | The approval surface must not rebuild a proposal from parts: a second construction path could show a human one artefact while the hash covers another. Reading the fields from the bytes themselves makes "what was challenged" and "what was shown" the same object by construction, and the recomputed hash catches a pending file edited in between |

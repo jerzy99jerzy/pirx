@@ -6,7 +6,7 @@ Project brief and first-sprint specification. Self-contained: executable in a
 fresh session with no context beyond this file.
 
 ```
-Brief version:  1.4   (changelog in section 11)
+Brief version:  1.5   (changelog in section 11)
 Repository:     github.com/jerzy99jerzy/pirx   (to be created)
 Consumes:       cve-digest.verdict/1
 Produced by:    github.com/jerzy99jerzy/cve-digest (display codename Rappaport)
@@ -313,7 +313,7 @@ Numbered `PT` to avoid collision with Rappaport's `T` series.
 | 0.4.0.0 | The model enters the proposer, and the renderer's untrusted-prose segregation lands with it. PT2 and PT6 become live threats here rather than theoretical ones, which is why this follows a working write path rather than preceding it. |
 | **0.5.0.0** | Attentive approval (PT15): content-derived challenge, reading floor, session grant budget, `AttentionEvidence` verified at issuance, attention events in the ledger, harness attacks A31-A35. No gate code. Supersedes the former 0.5.0.0 row ("second capability: create a change record") - the substitution is recorded in the v1.4 changelog, not made silently; the second capability returns as the first gated tool at 0.7.0.0. |
 | 0.6.0.0 | The justification-source abstraction: the verdict path becomes adapter #1 with zero behaviour change, proven by the existing suite passing unmodified; `CONTRACT.md` grows the abstraction. |
-| 0.7.0.0 | `pirx-gate`, a stdio MCP proxy: `InterceptedCallJustification` as adapter #2, the gated registry's first entry, threat rows PT16-PT18 with their harness attacks, the identity launcher (macOS + Linux) wired as the gate's process identity. Design: `docs/PIRX-GATE-DESIGN.md`. |
+| **0.7.0.0** | The gate, and the three coupled format changes it forces: `pirx.proposal/2` (justification in the preimage, `verdict` removed), `pirx.ledger/2` (field rename, both formats still readable), `pirx.intercepted-call/1` (adapter #2). Ships the pair settled decision 2 owed - HMAC grants **and** a durable spend store, together. `pirx-gate` intercepts `tools/call`, `pirx gate-approve` is the out-of-band surface, `pirx verify` reads either ledger format. Threat rows PT16-PT20; harness A37-A42d. Gated registry empty, as the capability registry was in 0.1.0.0. |
 | 0.8.0.0 | `pirx verify` report including the fatigue signal derived from attention events (T8's new owner); attestation export mapping ledger evidence to EU AI Act art. 14 / ISO 42001 demonstrable-oversight language. |
 
 The ordering is deliberate and mirrors Rappaport's: the trust machinery ships
@@ -518,6 +518,31 @@ the level of this brief:
 ---
 
 ## 11. Changelog
+
+**v1.5** - the gate, and the format changes it forces. Load-bearing changes:
+
+- **Three schema ids move in one version, never three** (P5's spirit, P8's
+  rule): `pirx.proposal/2`, `pirx.ledger/2`, `pirx.intercepted-call/1`.
+  `Proposal.verdict` is removed: with adapter #2 the field is not redundant
+  but false, and the lie propagated into the grant and into the ledger an
+  auditor reads (F43). `/1` is retired as a *writer*; `verify_chain` still
+  reads it, because a hash chain nobody can check is not an audit trail.
+- **Settled decision 2 comes due and is paid in full.** The gate splits
+  approval from execution, so the HMAC over the grant scope and the durable
+  spend store land together. Two costs, named rather than discovered: expiry
+  moves to the wall clock (a backwards clock extends a grant), and a grant
+  becomes a copyable artefact (the MAC makes forgery hard, the store makes a
+  copy useless, nothing makes the file secret).
+- **PT16-PT20 added.** Tool-definition drift; approval routed through the
+  party under review (MRTR is a poll ticket only); gate bypass, accepted as
+  evidentiable rather than preventable; process-identity forgery, accepted
+  with the Windows research that explains why the macOS story does not
+  transfer; header/body divergence at the transport.
+- The gated registry ships **empty**, exactly as the capability registry did
+  in 0.1.0.0 (P3).
+- MCP facts throughout are read from the 2026-07-28 specification at source,
+  not from memory; `docs/GATE-RESEARCH.md` carries the note with epistemic
+  labels.
 
 **v1.4** - the strategic reframe becomes plan. Load-bearing changes:
 

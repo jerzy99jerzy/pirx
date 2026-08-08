@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from conftest import TEST_ACTION, FakeClock, bundle, verdict
+from conftest import TEST_ACTION, FakeClock, bundle, grant_issuer, verdict
 from fakes import RecordingAdapter
 
 from pirx import approve, ledger
@@ -68,7 +68,8 @@ def session(
     adapter: RecordingAdapter | None = None,
 ) -> Session:
     return Session(
-        ledger.Ledger(tmp_path / "ledger.jsonl"), clock, registry, adapter=adapter
+        ledger.Ledger(tmp_path / "ledger.jsonl"), clock, registry,
+        issuer=grant_issuer(clock, tmp_path), adapter=adapter,
     )
 
 
@@ -350,27 +351,34 @@ def test_a20_lost_write_is_reported_as_not_landed(
     assert adapter.calls == []
 
 
-def test_a11_cross_run_authority_residual(tmp_path: Path, clock: FakeClock) -> None:
-    """Documents the residual rather than defending against it.
+def test_a11_cross_process_replay_is_now_refused(
+    tmp_path: Path, clock: FakeClock
+) -> None:
+    """**This attack used to succeed, by design. From 0.7.0.0 it does not.**
 
-    An in-process spent-set dies with the process. A second session accepts
-    the same grant - which is why HMAC grants and a durable spend store are
-    coupled and land together at the first process split (P5, settled
-    decision 2). If this test ever starts failing, the coupling shipped and
-    this row becomes a control row.
+    Through 0.6.0.0 the spent-set was per-process, and this row existed to
+    show that rather than to claim a defence the design did not provide
+    (finding F33). 0.7.0.0 ships the coupled pair the brief owed since
+    section 9 - an HMAC over the scope and a durable spend store - so a
+    second process sharing the store refuses the replay. The row is kept and
+    inverted rather than deleted: an accepted risk that was later controlled
+    should leave a trace in the place that used to accept it.
     """
-    first = session(tmp_path, clock, PRODUCTION_REGISTRY)
+    store_dir = tmp_path / "shared"
+    first = Session(
+        ledger.Ledger(tmp_path / "first.jsonl"), clock, PRODUCTION_REGISTRY,
+        issuer=grant_issuer(clock, store_dir),
+    )
     rendered = first_rendered(first, bundle())
     grant = first.issue(approval(rendered), rendered)
     first.spend(grant, rendered.action_hash, rendered.proposal.target)
 
     second = Session(
-        ledger.Ledger(tmp_path / "second.jsonl"), clock, PRODUCTION_REGISTRY
+        ledger.Ledger(tmp_path / "second.jsonl"), clock, PRODUCTION_REGISTRY,
+        issuer=grant_issuer(clock, store_dir),
     )
-    replayed = second.spend(
-        grant, rendered.action_hash, rendered.proposal.target
-    )
-    assert replayed.grant is grant
+    with pytest.raises(SpentGrantRefusal):
+        second.spend(grant, rendered.action_hash, rendered.proposal.target)
 
 
 # --- A12: ledger integrity (PT9) --------------------------------------------
@@ -553,6 +561,7 @@ def test_a34_session_grant_budget_overflow(
     """The (N+1)th grant in one session is refused with the budget named.
     In the single-run topology PT13's proposal budget binds first; this
     proves the primitive at the boundary the gate (0.7.0.0) will stand on."""
+    from pirx.justification import verdict_justification
     from pirx.proposal import Proposal, prepare
     from pirx.types import MAX_GRANTS_PER_SESSION, UntrustedProse, VerdictId
 
@@ -561,7 +570,9 @@ def test_a34_session_grant_budget_overflow(
         r = prepare(Proposal(
             action="ticket.comment",
             target=TargetId(f"ticket:CVE-2026-{5000 + n}"),
-            verdict=VerdictId(f"cve-digest.verdict/1#CVE-2026-{5000 + n}"),
+            justification=verdict_justification(
+                VerdictId(f"cve-digest.verdict/1#CVE-2026-{5000 + n}")
+            ),
             params={"cve_id": f"CVE-2026-{5000 + n}"},
             prose={"note": UntrustedProse("n")},
         ))
@@ -570,7 +581,7 @@ def test_a34_session_grant_budget_overflow(
     overflow = prepare(Proposal(
         action="ticket.comment",
         target=TargetId("ticket:CVE-2026-9999"),
-        verdict=VerdictId("cve-digest.verdict/1#CVE-2026-9999"),
+        justification=verdict_justification(VerdictId("cve-digest.verdict/1#CVE-2026-9999")),
         params={"cve_id": "CVE-2026-9999"},
         prose={"note": UntrustedProse("n")},
     ))
@@ -605,32 +616,40 @@ def test_a35_fabricated_decision_cannot_route_around_the_surface(
 # --- A36: evidence substitution (PT5) ---------------------------------------
 
 
-def test_a36_justification_cannot_disagree_with_the_verdict_it_names(
+def test_a36_a_grant_does_not_cover_a_different_evidence_set(
     tmp_path: Path, clock: FakeClock, book: Path
 ) -> None:
-    """A proposal carrying a verdict justification whose ref names a
-    *different* verdict is rejected at construction. The attack is the
-    substitution PT5 covers, moved one field left: same action, same target,
-    swapped evidence. Rejected as unrepresentable rather than caught at
-    spend, because a proposal that renders one id while carrying another has
-    already shown the human the wrong reason."""
-    from pirx.justification import from_verdict_id
-    from pirx.proposal import Proposal
+    """Same action, same target, different evidence: the grant must not
+    verify. From `pirx.proposal/2` the justification's schema, reference, and
+    digest are inside the preimage, so swapping the evidence changes the
+    action hash and the grant covers bytes that no longer exist. This is PT5
+    moved one field left - substitution of the *reason* rather than of the
+    target."""
+    from pirx.justification import verdict_justification
+    from pirx.proposal import Proposal, prepare
     from pirx.types import VerdictId
 
-    with pytest.raises(TypeError, match="does not match verdict"):
-        Proposal(
-            action="ticket.comment",
-            target=TargetId("ticket:CVE-2026-1001"),
-            verdict=VerdictId("cve-digest.verdict/1#CVE-2026-1001"),
-            params={"cve_id": "CVE-2026-1001"},
-            justification=from_verdict_id(
-                VerdictId("cve-digest.verdict/1#CVE-2026-4444")
-            ),
+    def proposal(cve: str) -> Any:
+        return prepare(
+            Proposal(
+                action="ticket.comment",
+                target=TargetId("ticket:CVE-2026-1001"),
+                justification=verdict_justification(
+                    VerdictId(f"cve-digest.verdict/1#{cve}")
+                ),
+                params={"cve_id": "CVE-2026-1001"},
+            )
         )
-    # Nothing reached the ledger: the object never existed, so no proposal
-    # event was written and no grant could be issued against it.
-    assert "proposal.created" not in names(book)
+
+    approved = proposal("CVE-2026-1001")
+    swapped = proposal("CVE-2026-4444")
+    assert approved.action_hash != swapped.action_hash
+
+    sess = session(tmp_path, clock, PRODUCTION_REGISTRY)
+    grant = sess.issue(approval(approved), approved)
+    with pytest.raises(HashMismatchRefusal):
+        sess.spend(grant, swapped.action_hash, swapped.proposal.target)
+    assert find(book, "refusal.hash_mismatch")
 
 
 # --- catalogue integrity ----------------------------------------------------
@@ -647,7 +666,7 @@ def test_every_catalogue_row_has_a_test() -> None:
         line for line in catalogue.splitlines()
         if line.startswith("| A") and "`test_" in line
     ]
-    assert len(rows) == 36, f"expected 36 catalogue rows, found {len(rows)}"
+    assert len(rows) == 49, f"expected 49 catalogue rows, found {len(rows)}"
 
     defined: set[str] = set()
     for module_path in here.glob("test_*.py"):
