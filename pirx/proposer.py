@@ -37,6 +37,7 @@ from dataclasses import dataclass
 
 from .consumer import Verdict, VerdictBundle
 from .errors import ModelRefusal
+from .justification import VerdictJustificationSource
 from .model.protocol import ProposalModel
 from .proposal import Proposal
 from .registry import KNOWN_INTENTS
@@ -113,6 +114,10 @@ def propose(
             action=action,
             target=_target_for(verdict),
             verdict=verdict.verdict_id,
+            # Adapter #1. The proposer holds the verdict object, so it can
+            # supply the computed evidence digest that a bare id cannot
+            # (0.6.0.0).
+            justification=VerdictJustificationSource(verdict).justify(),
             params={
                 "cve_id": verdict.cve_id,
                 "priority": verdict.priority,

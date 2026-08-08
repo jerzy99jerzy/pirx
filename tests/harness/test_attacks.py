@@ -602,6 +602,37 @@ def test_a35_fabricated_decision_cannot_route_around_the_surface(
     assert "grant.issued" not in kinds
 
 
+# --- A36: evidence substitution (PT5) ---------------------------------------
+
+
+def test_a36_justification_cannot_disagree_with_the_verdict_it_names(
+    tmp_path: Path, clock: FakeClock, book: Path
+) -> None:
+    """A proposal carrying a verdict justification whose ref names a
+    *different* verdict is rejected at construction. The attack is the
+    substitution PT5 covers, moved one field left: same action, same target,
+    swapped evidence. Rejected as unrepresentable rather than caught at
+    spend, because a proposal that renders one id while carrying another has
+    already shown the human the wrong reason."""
+    from pirx.justification import from_verdict_id
+    from pirx.proposal import Proposal
+    from pirx.types import VerdictId
+
+    with pytest.raises(TypeError, match="does not match verdict"):
+        Proposal(
+            action="ticket.comment",
+            target=TargetId("ticket:CVE-2026-1001"),
+            verdict=VerdictId("cve-digest.verdict/1#CVE-2026-1001"),
+            params={"cve_id": "CVE-2026-1001"},
+            justification=from_verdict_id(
+                VerdictId("cve-digest.verdict/1#CVE-2026-4444")
+            ),
+        )
+    # Nothing reached the ledger: the object never existed, so no proposal
+    # event was written and no grant could be issued against it.
+    assert "proposal.created" not in names(book)
+
+
 # --- catalogue integrity ----------------------------------------------------
 
 
@@ -616,7 +647,7 @@ def test_every_catalogue_row_has_a_test() -> None:
         line for line in catalogue.splitlines()
         if line.startswith("| A") and "`test_" in line
     ]
-    assert len(rows) == 35, f"expected 35 catalogue rows, found {len(rows)}"
+    assert len(rows) == 36, f"expected 36 catalogue rows, found {len(rows)}"
 
     defined: set[str] = set()
     for module_path in here.glob("test_*.py"):

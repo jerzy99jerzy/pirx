@@ -46,3 +46,29 @@ def test_docs_audit_detects_a_pin_mismatch(tmp_path: Path) -> None:
     )
     assert result.returncode == 1
     assert "architecture" in result.stderr
+
+
+def test_docs_audit_detects_a_stale_position_marker(tmp_path: Path) -> None:
+    """The 'You are here' marker is the one line in README a reader trusts
+    for orientation, so its failure mode is measured like any other."""
+    import shutil
+
+    work = tmp_path / "repo"
+    shutil.copytree(
+        ROOT, work,
+        ignore=shutil.ignore_patterns(
+            ".git", "__pycache__", ".venv", "*.jsonl",
+            ".mypy_cache", ".pytest_cache", ".ruff_cache",
+        ),
+    )
+    readme = work / "README.md"
+    readme.write_text(
+        readme.read_text().replace("**You are here: ", "**You are here: 9.9.9.9 not ")
+    )
+
+    result = subprocess.run(
+        [sys.executable, str(work / "tools" / "docs_audit.py")],
+        capture_output=True, text=True, cwd=work,
+    )
+    assert result.returncode == 1
+    assert "You are here" in result.stderr or "position marker" in result.stderr

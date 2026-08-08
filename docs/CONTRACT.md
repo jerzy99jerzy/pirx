@@ -48,11 +48,38 @@ Owner:     Pirx owns THIS document and the compatibility matrix below, as
    as though the payload could have been authored by an adversary who read
    the schema (PT14, accepted with a named trigger).
 
+## The justification abstraction (0.6.0.0)
+
+From 0.6.0.0 this contract is **one source of justification, not the only
+shape one can take.** A `Justification` (see `pirx/justification.py`) carries
+the source's schema id, the reference a human reads and the action hash
+covers, a digest over the source's own canonical evidence, and how the source
+appears in the rendered proposal.
+
+| Source | Schema | Render label | Status |
+|---|---|---|---|
+| Verdict item | `cve-digest.verdict/1` | `verdict` | adapter #1, shipped 0.6.0.0 |
+| Intercepted MCP call | `pirx.intercepted-call/1` | `intercepted_call` | adapter #2, owned by 0.7.0.0 (`docs/PIRX-GATE-DESIGN.md`) |
+
+Two consequences worth stating rather than discovering:
+
+1. **The verdict adapter renders exactly what the verdict path rendered
+   before the abstraction existed**, so every action hash and every grant
+   scope is unchanged. `tests/test_justification.py` holds the preimage as
+   golden bytes; a change there is a wire-format change.
+2. **The evidence digest is carried and not hashed.** Putting it in the
+   preimage changes every action hash, which means a new render schema id
+   (`pirx.proposal/2`), not an edit to `/1`. It lands with adapter #2, where
+   it binds a grant to the tool definition in force at approval time (PT16).
+   Until then a test asserts its absence, so "carried, not hashed" is
+   executable rather than commentary (P7).
+
 ## Compatibility matrix (consumer-owned)
 
 | Pirx version | Accepts | Notes |
 |---|---|---|
 | 0.1.0.0 | `cve-digest.verdict/1` | sole schema; any other id refused |
+| 0.6.0.0 | `cve-digest.verdict/1` | unchanged as a wire contract; it becomes adapter #1 of the justification abstraction, which is an internal shape, not a schema change |
 
 A breaking change on the producer side means `cve-digest.verdict/2`; Pirx
 then lists both here for the overlap window and retires `/1` explicitly. The

@@ -1,7 +1,7 @@
 # TODO
 
 ```
-Document:  docs/TODO.md, version 1.2
+Document:  docs/TODO.md, version 1.3
 Scope:     small, non-scope-bearing work - documentation, tooling, ergonomics.
            Anything that changes what Pirx does, or accepts a risk, belongs in
            the brief's deferral table (section 9) with an owning version, not
@@ -23,6 +23,9 @@ than parked.
 | T6 | Vendor the real WORKFLOW.md, or leave section 8 as the convention record | exchange entry PX-0001 | open (F32) |
 | T7 | Confirm or strike the five `[cve-digest: confirm]` provenance lines in FAMILY.md | exchange entry PX-0001 | open (F35) |
 | T8 | `pirx verify <ledger>` subcommand, report including the fatigue signal derived from attention events | 0.8.0.0 | open, re-owned from 0.5.0.0 (brief v1.4: 0.5.0.0 is single-purpose attentive approval; the report is worth shipping once it can carry the PT15 signal) |
+| T9 | `pirx/__init__.py` docstring still describes 0.4.0.0 as the current version | next docs PR | open (noticed during the 0.5.0.0 push; excluded from the bump commit on purpose, since a bump commit carries versions only) |
+| T10 | `ruff target-version` and `mypy python_version` say 3.12 while the brief and CI say 3.14 | next tooling PR | open - the checkers are lenient about a language level the project does not run on; decide whether to raise both or record the divergence with a reason |
+| T11 | Confirm `docs-audit` is a required status check on `main`, not merely a job that runs | next tooling PR | open - `gh api .../branches/main/protection --jq '.required_status_checks.contexts'`; a green job that cannot block a merge is not a gate |
 
 ## Rejected
 
