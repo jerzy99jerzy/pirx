@@ -1,13 +1,13 @@
 {
   "project": "pirx",
-  "version": "0.7.2.1",
+  "version": "0.7.2.2",
   "consumes": [
     "cve-digest.verdict/1",
     "mcp/2026-07-28"
   ],
   "produces": [],
   "registered_capabilities": 1,
-  "family_doc": "1.0",
+  "family_doc": "1.1",
   "brief": "1.7",
   "architecture": "2.2",
   "note": "Published for humans and exchange entries. Never read by the other repository's tooling (FAMILY.md section 1).",
