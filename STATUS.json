@@ -1,15 +1,19 @@
 {
   "project": "pirx",
-  "version": "0.6.0.0",
+  "version": "0.7.0.0",
   "consumes": [
-    "cve-digest.verdict/1"
+    "cve-digest.verdict/1",
+    "mcp/2026-07-28"
   ],
   "produces": [],
   "registered_capabilities": 1,
   "family_doc": "1.0",
-  "brief": "1.4",
-  "architecture": "1.4",
+  "brief": "1.5",
+  "architecture": "2.0",
   "note": "Published for humans and exchange entries. Never read by the other repository's tooling (FAMILY.md section 1).",
   "model_assisted": "optional, opt-in, recorded per run",
-  "docs_audit": "tools/docs_audit.py"
+  "docs_audit": "tools/docs_audit.py",
+  "gated_tools": 0,
+  "ledger_schema": "pirx.ledger/2",
+  "proposal_schema": "pirx.proposal/2"
 }
