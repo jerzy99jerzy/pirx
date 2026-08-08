@@ -1,5 +1,8 @@
 # Thesis: approval is a capability grant, not a checkbox
 
+> Codename **Pirx** (package `pirx`). Lem's pilot is trusted because he does
+> not trust himself; the thesis is the same discipline in code.
+
 ```
 Document:  docs/THESIS.md, version 1.0 (ships with 0.1.0.0)
 Expands:   PIRX-PROJECT-BRIEF.md v1.2, section 1

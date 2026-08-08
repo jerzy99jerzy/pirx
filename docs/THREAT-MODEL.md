@@ -1,5 +1,10 @@
 # Threat model
 
+> Codename **Pirx** (package `pirx`). After Lem's pilot, trusted with a ship
+> precisely because he treats his own judgement as fallible and checks it
+> against the instruments. This document is where the name earns itself: every
+> guardrail assumes the agent - and the human approving it - can be wrong.
+
 ```
 Document:  docs/THREAT-MODEL.md, version 1.0 (ships with 0.1.0.0)
 Source:    PIRX-PROJECT-BRIEF.md v1.2, section 5; PT numbering is never

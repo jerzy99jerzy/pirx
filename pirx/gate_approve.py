@@ -145,14 +145,37 @@ def _reconstruct(canonical: bytes, action_hash: str) -> RenderedProposal:
         schema=fields.get("justification.schema", ""),
         ref=JustificationRef(fields.get("justification.ref", "")),
         digest=fields.get("justification.digest", ""),
+        extra=tuple(
+            (key[len("justification.") :], value)
+            for key, value in fields.items()
+            if key.startswith("justification.")
+            and key not in ("justification.schema", "justification.ref",
+                            "justification.digest")
+        ),
     )
     proposal = Proposal(
         action=fields.get("action", ""),
         target=fields.get("target", ""),  # type: ignore[arg-type]
         justification=justification,
-        params={},
+        params={
+            key[len("param.") :]: value
+            for key, value in fields.items()
+            if key.startswith("param.")
+        },
     )
+    # The recomputed hash is the guard, not the reconstruction fidelity: if the
+    # rebuilt proposal renders to different bytes than the file, the recorded
+    # hash will not match and _checked refuses. Parsing every field back rather
+    # than a chosen few means a challenge on any rendered line - not only the
+    # three that happen not to be params today - reads the same value the human
+    # sees. The invariant "no challengeable field is a param" is no longer
+    # load-bearing (review F51).
     rebuilt = prepare(proposal)
+    if rebuilt.canonical_bytes != canonical:
+        raise ValueError(
+            "reconstructed proposal does not render to the pending bytes; "
+            "the pending file and this code disagree on the canonical form"
+        )
     return RenderedProposal(
         proposal=rebuilt.proposal,
         canonical_bytes=canonical,

@@ -6,10 +6,21 @@ not per session.**
 
 [![gate](https://github.com/jerzy99jerzy/pirx/actions/workflows/gate.yml/badge.svg)](https://github.com/jerzy99jerzy/pirx/actions/workflows/gate.yml)
 
-Pirx consumes vulnerability verdicts from an upstream ranking system and
-proposes remediation actions to a human. When the human approves one, Pirx
-receives a **grant**: authority bound to the hash of one fully-specified
-action, valid once, expiring shortly. It cannot do anything else with it.
+Pirx holds a high-impact action until a human has approved **the exact bytes
+that describe it**, then hands over authority bound to the hash of those
+bytes: valid once, expiring shortly, spendable on nothing else.
+
+Two things can put an action in front of that approval, and from 0.7.0.0 both
+are first-class:
+
+- **An intercepted MCP tool call.** `pirx-gate` sits between an agent host and
+  a downstream MCP server. A call naming a gated tool is held, rendered as a
+  canonical proposal, and forwarded only after a human grant exists for those
+  exact bytes. This is where the project is going.
+- **A ranked CVE verdict.** The original path: `pirx run` consumes
+  `cve-digest.verdict/1` from an upstream ranking system and proposes one
+  remediation per verdict. Still shipped, still tested, now one justification
+  source among two rather than the reason the project exists.
 
 The name is Lem's pilot - trusted with a ship precisely because he treats his
 own judgement as fallible and checks it against the instruments.
@@ -43,7 +54,7 @@ itself.
 | Approval is measurably attentive | 0.5.0.0 | A grant needs `AttentionEvidence`: a hash-selected field transcribed from the rendered bytes, an answer above a length-derived floor, a session budget. Verified at the surface and again at issuance. Demonstrates the approver operated on those bytes - never that they understood them. |
 | Evidence is a type, not a field | 0.6.0.0 | Why an action is warranted arrives as a `Justification` from a source adapter, so a second kind of evidence is an addition rather than a rewrite. The verdict path renders the same bytes it always did, held as a golden preimage. |
 
-**You are here: 0.7.0.0.** The `Since` column is the version in which a
+**You are here: 0.7.0.2.** The `Since` column is the version in which a
 property became enforced, not the version that announced it; the marker is
 pinned to `STATUS.json` by the docs audit, so it cannot drift past a bump.
 
@@ -64,9 +75,18 @@ ledger either way.
 Written before the code, because naming what a control does not buy is harder
 than building it.
 
-- **Does not decide what is worth fixing.** Priority arrives in the verdict
-  and is never recomputed. An agent that can adjust the ranking justifying
-  its own actions has no meaningful constraint left.
+- **Does not decide what is worth fixing.** On the verdict path, priority
+  arrives in the payload and is never recomputed; at the gate, the agent
+  asked for the action and the rendering says so rather than dressing a
+  request up as a finding. An agent that can adjust the justification for its
+  own actions has no meaningful constraint left.
+- **Is not a policy engine.** No risk scoring, no rule language, no "this
+  DELETE looks fine". The gated registry is a reviewed-in-code list; a tool is
+  gated or it is not. That market is funded and taken, and every line of it
+  here would dilute the one claim this project makes.
+- **Does not do discovery, inventory, or payload inspection.** No scanning of
+  tool descriptions for injection, no PII detection. Adjacent products do
+  this well.
 - **Does not act without a human.** No autonomous mode, no trusted lane, no
   threshold above which approval is skipped, no configuration flag that could
   create one.
@@ -102,6 +122,36 @@ than building it.
 ---
 
 ## Where it sits
+
+**As a gate, between an agent and the tools it wants to use:**
+
+```mermaid
+flowchart LR
+    A["agent host<br/><i>untrusted for approval</i>"]
+    G["pirx-gate<br/><i>holds the call</i>"]
+    D["downstream MCP server"]
+    H(["human<br/><i>reads the bytes,<br/>answers a challenge</i>"])
+    A -->|"tools/call"| G
+    G -->|"the bytes as received,<br/>once a grant exists"| D
+    G -.->|"MRTR poll ticket:<br/>no bytes, no approval field"| A
+    G -->|"canonical proposal"| H
+    H -->|"grant bound to those bytes"| G
+    classDef default fill:#161b22,stroke:#7d8590,color:#e6edf3
+    classDef human fill:#2b1f3a,stroke:#ffb86c,color:#ffd9a8,stroke-width:3px
+    class H human
+```
+
+Authority enters at exactly one edge - human to gate. The approval surface is
+a Pirx-owned process, never the intercepted protocol: MRTR renders in the
+calling agent's host, so an approval delivered there would sit inside the
+trust domain of the party under review (PT17).
+
+The gate cannot prevent its own bypass and does not claim to. An agent host
+that launches the downstream server directly never passes through it;
+prevention lives in the environment, and what the gate provides is evidence -
+an action that landed with no grant event has no ledger trail (PT18).
+
+**As a consumer, downstream of a ranking system:**
 
 ```mermaid
 flowchart LR
@@ -151,8 +201,45 @@ Verify the ledger chain afterwards, as a separate command - a verification
 and the action it guards never share a pasted block:
 
 ```bash
-python -c "from pathlib import Path; from pirx import ledger; print(ledger.verify(Path('my-ledger.jsonl')), 'records, chain intact')"
+pirx verify my-ledger.jsonl
 ```
+
+It reports which ledger format it read. `pirx.ledger/1` predates the gate and
+stays verifiable: retiring a format's *writer* is not retiring its *reader*,
+and a hash chain nobody can still check is not an audit trail.
+
+### Running the gate
+
+The gated registry ships **empty**, exactly as the capability registry did in
+0.1.0.0: the machinery runs and guards nothing until a tool is registered in
+code with the definition hash its reviewer pinned. Registration is a code
+change reviewed like one - there is no path that adds a gated tool at
+runtime.
+
+The gate and the approval surface are separate processes, so grants must
+verify outside the process that issued them. That needs a key file, and 32
+bytes is a floor in code rather than a setting:
+
+```bash
+python -c "import secrets, pathlib; pathlib.Path('gate/key').write_bytes(secrets.token_bytes(32))"
+export PIRX_GRANT_KEY_FILE=$PWD/gate/key
+```
+
+A human then walks the pending queue on a terminal the gate does not own:
+
+```bash
+pirx gate-approve $PWD/gate
+```
+
+Each pending proposal is printed verbatim inside a frame, an attention
+challenge asks for one hash-selected field back, and an approving answer
+issues one grant for those exact bytes. On the caller's next retry the gate
+verifies the grant, spends it durably, and forwards the original request. The
+retry after that is refused: `grant already spent`.
+
+While no grant exists the gate answers with a Multi Round-Trip Request poll
+ticket - an opaque identifier and a notice, carrying no proposal bytes, no
+action hash, and no field an approval could be written into.
 
 ### Wiring the ticket adapter
 
@@ -201,11 +288,27 @@ threat wearing a helpful face.
 | 3 | a refusal fired inside the loop (expired grant, unregistered action, no adapter, failed attention challenge, reading floor, session budget) |
 | 4 | the target system refused a write; authority was consumed and is not refunded |
 | 64 | usage error |
-| 78 | reconciliation requested with no adapter configured |
+| 78 | reconciliation requested with no adapter configured, or `gate-approve` run with no key file |
 
 ---
 
 ## Architecture
+
+Two entry points, one trust loop. `pirx run` walks a verdict payload;
+`pirx-gate` holds an MCP tool call. Both render through the same canonical
+renderer, both go through the same attention challenge, and both end at the
+same grant machinery - which is the point of the justification abstraction
+that landed in 0.6.0.0.
+
+| Module | Role |
+|---|---|
+| `mcp/protocol.py` | Parses MCP messages as hostile input; enumerated protocol versions; refuses any header/body disagreement (PT20) |
+| `mcp/gate.py` | Interception, the gated registry, the pending queue, the MRTR poll ticket, forwarding the received bytes |
+| `gate_approve.py` | The out-of-band approval surface for gated calls |
+| `justification.py` | Why an action is warranted: verdict adapter, intercepted-call adapter |
+| `grant.py` | HMAC over the canonical scope; issue, verify, spend |
+| `spendstore.py` | Durable single-use: a burnt nonce is a file created with `O_EXCL` |
+
 
 ```mermaid
 flowchart TB
