@@ -109,3 +109,49 @@ def test_manual_audit_detects_a_drifted_constant(tmp_path: Path) -> None:
     )
     assert result.returncode == 1
     assert "GRANT_TTL_SECONDS" in result.stderr
+
+
+def test_the_test_count_badge_is_true() -> None:
+    """The README badge says how many tests there are, so it is checked
+    against a real collection. A grep undercounts by 25 because of
+    parametrised tests, which is exactly why this lives here and not in
+    `docs_audit.py`: the audit runs in a CI job with no pytest installed."""
+    import re
+
+    collected = subprocess.run(
+        [sys.executable, "-m", "pytest", "-q", "--collect-only"],
+        capture_output=True, text=True, cwd=ROOT,
+    )
+    match = re.search(r"(\d+) tests collected", collected.stdout)
+    assert match, collected.stdout[-500:]
+    real = int(match.group(1))
+
+    badge = re.search(r"badge/tests-(\d+)-", (ROOT / "README.md").read_text())
+    assert badge, "README has no test-count badge"
+    assert int(badge.group(1)) == real, (
+        f"badge says {badge.group(1)} tests, collection found {real}"
+    )
+
+
+def test_docs_audit_detects_a_stale_badge(tmp_path: Path) -> None:
+    """The badge tripwire's own failure mode, measured."""
+    import shutil
+
+    work = tmp_path / "repo"
+    shutil.copytree(
+        ROOT, work,
+        ignore=shutil.ignore_patterns(
+            ".git", "__pycache__", ".venv", "*.jsonl",
+            ".mypy_cache", ".pytest_cache", ".ruff_cache",
+        ),
+    )
+    readme = work / "README.md"
+    readme.write_text(
+        readme.read_text().replace("hostile%20attacks-50-", "hostile%20attacks-99-")
+    )
+    result = subprocess.run(
+        [sys.executable, str(work / "tools" / "docs_audit.py")],
+        capture_output=True, text=True, cwd=work,
+    )
+    assert result.returncode == 1
+    assert "attacks badge" in result.stderr
