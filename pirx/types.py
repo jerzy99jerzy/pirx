@@ -23,6 +23,10 @@ VerdictId = NewType("VerdictId", str)
 TargetId = NewType("TargetId", str)
 ActionHash = NewType("ActionHash", str)
 GrantNonce = NewType("GrantNonce", str)
+#: The identifier a justification names. Distinct from VerdictId because a
+#: verdict id is one possible value and the type must not imply it is the
+#: only one (0.7.0.0, review finding F43).
+JustificationRef = NewType("JustificationRef", str)
 
 
 # --- Untrusted prose --------------------------------------------------------
@@ -89,15 +93,51 @@ MAX_GRANTS_PER_SESSION = 20
 #: deterministic ``Proposal`` attribute that the renderer prints verbatim;
 #: prose is never challengeable, because transcribing untrusted prose would
 #: put producer text into the approver's hands as an expected value (PT2).
-CHALLENGE_FIELDS: tuple[str, ...] = ("target", "verdict", "action")
+CHALLENGE_FIELDS: tuple[str, ...] = ("target", "justification", "action")
 
 #: Canonical schema id this version consumes. Any other value is refused,
 #: never coerced (PT1).
 ACCEPTED_VERDICT_SCHEMA = "cve-digest.verdict/1"
 
-#: Ledger chain genesis preimage. Documented and fixed so a verifier can
-#: distinguish a fresh ledger from one whose head was replaced (PT9).
-LEDGER_GENESIS_SENTINEL = b"pirx.ledger/1 genesis"
+#: Ledger chain genesis preimages. Documented and fixed so a verifier can
+#: distinguish a fresh ledger from one whose head was replaced (PT9). The /2
+#: sentinel arrives with 0.7.0.0, where event fields stop saying "verdict"
+#: and start saying "justification". `/1` is not redefined and stays
+#: verifiable: an auditor's query against field names is a consumer of this
+#: format, and a hash chain nobody can still verify is not an audit trail.
+#: Current ledger format id, carried in `run.started` so a reader does not
+#: have to infer it from a sentinel.
+LEDGER_SCHEMA = "pirx.ledger/2"
+LEDGER_GENESIS_SENTINEL_V1 = b"pirx.ledger/1 genesis"
+LEDGER_GENESIS_SENTINEL = b"pirx.ledger/2 genesis"
 
-#: Wire format id for the canonical proposal rendering.
-PROPOSAL_RENDER_SCHEMA = "pirx.proposal/1"
+#: Wire format id for the canonical proposal rendering. Bumped to /2 at
+#: 0.7.0.0: the justification's schema, reference, and evidence digest enter
+#: the preimage, so every action hash changes. A new id, never a redefinition
+#: of /1 (P8).
+PROPOSAL_RENDER_SCHEMA = "pirx.proposal/2"
+
+
+# --- Gate constants (0.7.0.0) -----------------------------------------------
+
+#: Justification schema for an intercepted MCP tool call.
+INTERCEPTED_CALL_SCHEMA = "pirx.intercepted-call/1"
+
+#: MCP protocol revisions this gate parses. An unknown revision is refused,
+#: never best-effort parsed: the gate reads a request in order to decide
+#: whether a human must approve it, and a version it does not understand is a
+#: request whose meaning it cannot establish (PT1 discipline, transport tier).
+SUPPORTED_MCP_PROTOCOL_VERSIONS: tuple[str, ...] = ("2026-07-28",)
+
+#: Longest canonical argument JSON retained from an intercepted call. Bounds
+#: what a human is asked to read as much as what the process holds.
+MAX_CALL_ARGUMENT_CHARS = 4_000
+
+#: Environment variable naming the file that holds the grant HMAC key. The
+#: key is read by the approval surface and by the gate; nothing under
+#: `model/` may reach either, which the import scrape enforces.
+GRANT_KEY_ENV = "PIRX_GRANT_KEY_FILE"
+
+#: Minimum accepted key length. A short key is a long key that was never
+#: generated properly, and this is a constant rather than a warning.
+MIN_GRANT_KEY_BYTES = 32

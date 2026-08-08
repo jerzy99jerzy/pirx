@@ -9,6 +9,7 @@ from conftest import FakeClock
 
 from pirx import approve
 from pirx.errors import ChallengeFailedRefusal, ReadingFloorRefusal
+from pirx.justification import verdict_justification
 from pirx.proposal import Proposal, prepare
 from pirx.types import CHALLENGE_FIELDS, TargetId, UntrustedProse, VerdictId
 
@@ -18,7 +19,7 @@ def rendered(note: str = "Exploited in the wild."):
         Proposal(
             action="ticket.comment",
             target=TargetId("ticket:CVE-2026-1001"),
-            verdict=VerdictId("cve-digest.verdict/1#CVE-2026-1001"),
+            justification=verdict_justification(VerdictId("cve-digest.verdict/1#CVE-2026-1001")),
             params={"cve_id": "CVE-2026-1001", "priority": "P1"},
             prose={"triage_note": UntrustedProse(note)},
         )

@@ -1,62 +1,80 @@
-"""The justification abstraction: general shape, identical bytes.
+"""The justification abstraction, and the `pirx.proposal/2` preimage.
 
-The sprint's claim is narrow and checkable: a seam now exists for a second
-evidence source, and the verdict path produces the same bytes it produced
-before the seam existed. The 156 tests that shipped with 0.5.0.0 pass
-unmodified; this module adds the assertions those tests cannot make, chiefly
-the golden preimage - "unmodified tests still pass" proves nothing changed
-that they looked at, and a literal byte string proves what they looked at.
+0.6.0.0 built the seam and proved the verdict path's bytes had not moved.
+0.7.0.0 moves them deliberately: the justification's schema, reference, and
+evidence digest enter the preimage, `verdict` stops being a field, and a
+second adapter exists. The golden below is therefore a *new* literal under a
+*new* schema id - `/1` is retired, never redefined (P8).
 """
 
 from __future__ import annotations
 
 import hashlib
+import json
 
 import pytest
 from conftest import verdict as verdict_dict
 
 from pirx.consumer import parse
+from pirx.errors import BoundsRefusal
 from pirx.justification import (
-    VERDICT_LABEL,
+    NO_DIGEST,
+    InterceptedCallSource,
     Justification,
     VerdictJustificationSource,
-    from_verdict_id,
+    call_evidence,
+    canonical_arguments,
     verdict_evidence,
+    verdict_justification,
 )
 from pirx.proposal import Proposal, prepare, render
-from pirx.types import ACCEPTED_VERDICT_SCHEMA, TargetId, UntrustedProse, VerdictId
+from pirx.types import (
+    ACCEPTED_VERDICT_SCHEMA,
+    INTERCEPTED_CALL_SCHEMA,
+    MAX_CALL_ARGUMENT_CHARS,
+    JustificationRef,
+    TargetId,
+    UntrustedProse,
+    VerdictId,
+)
 
-#: The exact bytes the verdict path rendered before this abstraction existed.
-#: Any change here is a wire-format change and needs a new render schema id
-#: (P8), not an edited literal.
+#: The canonical rendering under `pirx.proposal/2`. A change here is a
+#: wire-format change and needs a new schema id, not an edited literal.
 GOLDEN = (
-    b"pirx.proposal/1\n"
+    b"pirx.proposal/2\n"
     b"action: ticket.comment\n"
     b"target: ticket:CVE-2026-1001\n"
-    b"verdict: cve-digest.verdict/1#CVE-2026-1001\n"
+    b"justification.schema: cve-digest.verdict/1\n"
+    b"justification.ref: cve-digest.verdict/1#CVE-2026-1001\n"
+    b"justification.digest: -\n"
     b"param.cve_id: CVE-2026-1001\n"
     b"param.priority: P1\n"
     b"~~~pirx-untrusted-0 begin triage_note "
     b"(origin=unknown, chars=22, escaped, NOT a decision input)\n"
     b"  Exploited in the wild.\n"
     b"~~~pirx-untrusted-0 end triage_note\n"
-    b"bytes: 316\n"
+    b"bytes: 393\n"
 )
+
+#: The `/1` rendering, retained as a witness. `/1` is retired: no code path
+#: produces it, and this constant exists so that "the format changed" is a
+#: statement a test can make rather than a claim in a changelog.
+RETIRED_V1_HEAD = b"pirx.proposal/1\n"
 
 
 def sample() -> Proposal:
     return Proposal(
         action="ticket.comment",
         target=TargetId("ticket:CVE-2026-1001"),
-        verdict=VerdictId("cve-digest.verdict/1#CVE-2026-1001"),
+        justification=verdict_justification(
+            VerdictId("cve-digest.verdict/1#CVE-2026-1001")
+        ),
         params={"cve_id": "CVE-2026-1001", "priority": "P1"},
         prose={"triage_note": UntrustedProse("Exploited in the wild.")},
     )
 
 
-def parsed_verdict(**over: object) -> object:
-    import json
-
+def parsed_verdict(**over: object):
     body = json.dumps(
         {
             "schema": ACCEPTED_VERDICT_SCHEMA,
@@ -68,130 +86,150 @@ def parsed_verdict(**over: object) -> object:
     return parse(body).verdicts[0]
 
 
-# --- the acceptance criterion ----------------------------------------------
+# --- the format -------------------------------------------------------------
 
 
-def test_verdict_path_renders_the_pre_abstraction_bytes() -> None:
-    """Golden preimage. If this fails, action hashes moved, which means every
-    grant issued against the old rendering is void - a wire-format change
-    wearing a refactor's clothes."""
+def test_the_canonical_rendering_is_the_golden_bytes() -> None:
     assert render(sample()) == GOLDEN
 
 
-def test_a_justification_object_renders_identically_to_a_bare_id() -> None:
-    bare = sample()
-    explicit = Proposal(
-        action=bare.action,
-        target=bare.target,
-        verdict=bare.verdict,
-        params=bare.params,
-        justification=VerdictJustificationSource(
-            parsed_verdict()  # type: ignore[arg-type]
-        ).justify(),
-        prose=bare.prose,
+def test_the_retired_schema_id_is_no_longer_produced() -> None:
+    """`/1` is retired, not redefined. Any grant issued under it verifies
+    against bytes nothing now renders, which is the point of a new id."""
+    assert not render(sample()).startswith(RETIRED_V1_HEAD)
+
+
+def test_an_absent_digest_renders_a_visible_marker() -> None:
+    assert f"justification.digest: {NO_DIGEST}".encode() in render(sample())
+
+
+def test_the_evidence_digest_is_inside_the_action_hash() -> None:
+    """0.6.0.0 carried the digest without hashing it and asserted the
+    absence. 0.7.0.0 hashes it, which is what makes PT16 structural: two
+    proposals differing only in evidence are two different actions."""
+    verdict = parsed_verdict()
+    with_evidence = Proposal(
+        action="ticket.comment",
+        target=TargetId("ticket:CVE-2026-1001"),
+        justification=VerdictJustificationSource(verdict).justify(),
+        params={"cve_id": "CVE-2026-1001"},
     )
-    assert render(explicit) == render(bare)
-    assert prepare(explicit).action_hash == prepare(bare).action_hash
+    without = Proposal(
+        action="ticket.comment",
+        target=TargetId("ticket:CVE-2026-1001"),
+        justification=verdict_justification(verdict.verdict_id),
+        params={"cve_id": "CVE-2026-1001"},
+    )
+    digest = VerdictJustificationSource(verdict).justify().digest
+    assert digest.encode("ascii") in render(with_evidence)
+    assert prepare(with_evidence).action_hash != prepare(without).action_hash
 
 
-# --- the abstraction itself -------------------------------------------------
+# --- adapter #1 -------------------------------------------------------------
 
 
-def test_adapter_one_reports_its_schema_ref_and_label() -> None:
-    just = VerdictJustificationSource(parsed_verdict()).justify()  # type: ignore[arg-type]
+def test_adapter_one_reports_its_schema_and_reference() -> None:
+    just = VerdictJustificationSource(parsed_verdict()).justify()
     assert just.schema == ACCEPTED_VERDICT_SCHEMA
     assert just.ref == "cve-digest.verdict/1#CVE-2026-1001"
-    assert just.label == VERDICT_LABEL
     assert just.extra == ()
 
 
 def test_evidence_digest_is_deterministic_and_field_sensitive() -> None:
-    first = VerdictJustificationSource(parsed_verdict()).justify()  # type: ignore[arg-type]
-    again = VerdictJustificationSource(parsed_verdict()).justify()  # type: ignore[arg-type]
-    other = VerdictJustificationSource(
-        parsed_verdict(priority="P3")  # type: ignore[arg-type]
-    ).justify()
+    first = VerdictJustificationSource(parsed_verdict()).justify()
+    again = VerdictJustificationSource(parsed_verdict()).justify()
+    other = VerdictJustificationSource(parsed_verdict(priority="P3")).justify()
     assert first.digest == again.digest
     assert first.digest != other.digest
     assert first.digest == hashlib.sha256(
-        verdict_evidence(parsed_verdict())  # type: ignore[arg-type]
+        verdict_evidence(parsed_verdict())
     ).hexdigest()
 
 
 def test_evidence_excludes_prose() -> None:
     """A digest over model-authored text would make a verdict's evidence
     identity depend on what a model wrote about it (PT2)."""
-    plain = VerdictJustificationSource(parsed_verdict()).justify()  # type: ignore[arg-type]
+    plain = VerdictJustificationSource(parsed_verdict()).justify()
     noisy = VerdictJustificationSource(
-        parsed_verdict(triage_note="ENTIRELY DIFFERENT PROSE")  # type: ignore[arg-type]
+        parsed_verdict(triage_note="ENTIRELY DIFFERENT PROSE")
     ).justify()
     assert plain.digest == noisy.digest
 
 
-def test_digest_is_carried_but_not_hashed_yet() -> None:
-    """**This is an acceptance, asserted so it costs a deliberate edit.**
+# --- adapter #2 -------------------------------------------------------------
 
-    The digest is not in the preimage in `pirx.proposal/1`. It enters with
-    the gate, under a new render schema id, where it binds a grant to the
-    tool definition in force at approval time (PT16). Until then, claiming
-    the digest is covered by the action hash would be a claim the code does
-    not produce (P7)."""
-    just = VerdictJustificationSource(parsed_verdict()).justify()  # type: ignore[arg-type]
-    proposal = Proposal(
-        action="ticket.comment",
-        target=TargetId("ticket:CVE-2026-1001"),
-        verdict=VerdictId(just.ref),
-        params={"cve_id": "CVE-2026-1001"},
-        justification=just,
+
+def source() -> InterceptedCallSource:
+    return InterceptedCallSource(
+        tool="repo.write_file",
+        arguments={"path": "/a", "content": "x"},
+        tool_definition_hash="a" * 64,
     )
-    assert just.digest
-    assert just.digest.encode("ascii") not in render(proposal)
 
 
-def test_a_second_source_renders_its_own_evidence() -> None:
-    """The seam's whole purpose: a source that is not a verdict contributes
-    its own label and its own deterministic lines, without the renderer
-    learning anything about it. Shape rehearsal for the gate's intercepted
-    call (0.7.0.0), not the gate itself."""
+def test_adapter_two_carries_tool_definition_and_arguments() -> None:
+    just = source().justify()
+    assert just.schema == INTERCEPTED_CALL_SCHEMA
+    assert just.ref.startswith("mcp:tools/call#")
+    assert dict(just.extra)["tool"] == "repo.write_file"
+    assert dict(just.extra)["tool_definition_hash"] == "a" * 64
+    assert dict(just.extra)["arguments"] == '{"content":"x","path":"/a"}'
+
+
+def test_arguments_are_canonical_regardless_of_key_order() -> None:
+    a = InterceptedCallSource(
+        tool="t", arguments={"b": 1, "a": 2}, tool_definition_hash="c" * 64
+    ).justify()
+    b = InterceptedCallSource(
+        tool="t", arguments={"a": 2, "b": 1}, tool_definition_hash="c" * 64
+    ).justify()
+    assert a == b
+
+
+def test_changing_the_tool_definition_changes_the_evidence() -> None:
+    baseline = source().justify()
+    drifted = InterceptedCallSource(
+        tool=source().tool,
+        arguments=source().arguments,
+        tool_definition_hash="b" * 64,
+    ).justify()
+    assert baseline.digest != drifted.digest
+    assert baseline.ref != drifted.ref
+
+
+def test_evidence_digest_matches_the_documented_preimage() -> None:
+    just = source().justify()
+    expected = hashlib.sha256(
+        call_evidence("repo.write_file", source().arguments, "a" * 64)
+    ).hexdigest()
+    assert just.digest == expected
+
+
+def test_oversized_arguments_are_refused_at_the_bound() -> None:
+    """Bounded before rendering, like producer prose: what a human is asked
+    to read is bounded as firmly as what the process holds."""
+    with pytest.raises(BoundsRefusal):
+        canonical_arguments({"blob": "x" * (MAX_CALL_ARGUMENT_CHARS + 1)})
+
+
+# --- the seam ---------------------------------------------------------------
+
+
+def test_a_foreign_source_renders_without_the_renderer_knowing_it() -> None:
     foreign = Justification(
-        schema="pirx.intercepted-call/1",
-        ref="mcp:tools/call#a1b2c3",
+        schema="example.source/1",
+        ref=JustificationRef("example:42"),
         digest="0" * 64,
-        label="intercepted_call",
-        extra=(("tool", "repo.write_file"), ("tool_definition_hash", "f" * 8)),
+        extra=(("ticket", "OPS-1"),),
     )
-    proposal = Proposal(
-        action="ticket.comment",
-        target=TargetId("ticket:CVE-2026-1001"),
-        verdict=VerdictId("cve-digest.verdict/1#CVE-2026-1001"),
-        params={"cve_id": "CVE-2026-1001"},
-        justification=foreign,
-    )
-    body = render(proposal)
-    assert b"intercepted_call: mcp:tools/call#a1b2c3\n" in body
-    assert b"tool: repo.write_file\n" in body
-    assert b"tool_definition_hash: ffffffff\n" in body
-    assert b"verdict: " not in body
-    assert render(proposal) != render(sample())
-
-
-def test_a_verdict_justification_may_not_disagree_with_the_verdict_field() -> None:
-    """Two fields naming the same thing must not carry two answers: one would
-    be rendered and the other believed."""
-    with pytest.raises(TypeError, match="does not match verdict"):
+    body = render(
         Proposal(
             action="ticket.comment",
-            target=TargetId("ticket:CVE-2026-1001"),
-            verdict=VerdictId("cve-digest.verdict/1#CVE-2026-1001"),
+            target=TargetId("ticket:X"),
+            justification=foreign,
             params={"cve_id": "CVE-2026-1001"},
-            justification=from_verdict_id(
-                VerdictId("cve-digest.verdict/1#CVE-2026-9999")
-            ),
         )
-
-
-def test_a_bare_id_justification_reports_no_digest() -> None:
-    """Empty means "not computed here", never "computed and equal to
-    nothing" - a consumer that treats an empty digest as a value is reading
-    absence as evidence."""
-    assert from_verdict_id(VerdictId("cve-digest.verdict/1#CVE-2026-1001")).digest == ""
+    )
+    assert b"justification.schema: example.source/1\n" in body
+    assert b"justification.ref: example:42\n" in body
+    assert b"justification.ticket: OPS-1\n" in body

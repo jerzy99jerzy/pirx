@@ -37,7 +37,7 @@ from .model.protocol import ProposalModel
 from .proposal import Proposal, RenderedProposal, prepare
 from .proposer import ProposalSet, propose
 from .registry import Registry
-from .types import MAX_PROPOSALS_PER_RUN, ActionHash, TargetId
+from .types import LEDGER_SCHEMA, MAX_PROPOSALS_PER_RUN, ActionHash, TargetId
 
 
 class Session:
@@ -48,6 +48,7 @@ class Session:
         ledger: Ledger,
         clock: Callable[[], float],
         registry: Registry,
+        issuer: GrantIssuer,
         adapter: TicketAdapter | None = None,
         model: ProposalModel | None = None,
     ) -> None:
@@ -56,7 +57,10 @@ class Session:
         self.registry = registry
         self.adapter = adapter
         self.model = model
-        self.issuer = GrantIssuer(clock=clock)
+        # Injected from 0.7.0.0: the issuer holds a key and a durable spend
+        # store, and a session that constructed its own would be a session
+        # that decided where authority is recorded (ARCHITECTURE A19).
+        self.issuer = issuer
 
     def _record_refusal(self, exc: Refusal) -> None:
         self.ledger.append(exc.event, **exc.details, message=exc.message)
@@ -65,6 +69,7 @@ class Session:
         self.ledger.append(
             "run.started",
             payload=payload_name,
+            ledger_schema=LEDGER_SCHEMA,
             registered_actions=list(self.registry.actions()),
             budget=MAX_PROPOSALS_PER_RUN,
         )
@@ -102,7 +107,9 @@ class Session:
         for item in result.proposals:
             self.ledger.append(
                 "proposal.created",
-                action=item.action, target=item.target, verdict=item.verdict,
+                action=item.action, target=item.target,
+                justification=str(item.justification.ref),
+                justification_schema=item.justification.schema,
             )
         if result.over_budget:
             self.ledger.append(
@@ -164,7 +171,7 @@ class Session:
         self.ledger.append(
             "grant.issued",
             nonce=grant.nonce, action_hash=grant.action_hash,
-            target=grant.target,
+            target=grant.target, justification=str(grant.justification),
             ttl_seconds=round(grant.deadline - grant.issued_at, 3),
         )
         return grant

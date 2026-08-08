@@ -5,6 +5,15 @@ a documented sentinel (``LEDGER_GENESIS_SENTINEL``), so a verifier can tell a
 fresh ledger from one whose head was replaced (PT9). The verifier ships in
 this module because a chain nobody checks is a field, not a control.
 
+**Two formats, from 0.7.0.0.** `pirx.ledger/1` events name a `verdict`;
+`/2` events name a `justification`, because a gated MCP call has no verdict
+and a field that lies to an auditor is worse than one that changes (review
+finding F43). The id is not repurposed: `/2` chains a different genesis
+sentinel, and ``verify`` reads both and reports which it read. A `/1` ledger
+stays verifiable for as long as it exists - a hash chain nobody can still
+check is not an audit trail, and retiring the *writer* is not the same act as
+retiring the *reader* (P8).
+
 Intent events are written **before** the action they guard as well as after,
 so an action with no preceding event is itself evidence. Every append is
 flushed and fsynced before returning: the at-most-once story leans on
@@ -35,7 +44,7 @@ from pathlib import Path
 from typing import Any
 
 from .errors import LedgerChainRefusal
-from .types import LEDGER_GENESIS_SENTINEL
+from .types import LEDGER_GENESIS_SENTINEL, LEDGER_GENESIS_SENTINEL_V1, LEDGER_SCHEMA
 
 
 def _canonical(record: dict[str, Any]) -> bytes:
@@ -50,6 +59,14 @@ def _digest(payload: bytes) -> str:
 
 
 GENESIS_HASH = _digest(LEDGER_GENESIS_SENTINEL)
+GENESIS_HASH_V1 = _digest(LEDGER_GENESIS_SENTINEL_V1)
+
+#: Which sentinel a chain starts from, by the format that wrote it. Read in
+#: this order so a `/2` ledger is never mistaken for a broken `/1` one.
+GENESIS_BY_SCHEMA: dict[str, str] = {
+    "pirx.ledger/2": GENESIS_HASH,
+    "pirx.ledger/1": GENESIS_HASH_V1,
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -107,22 +124,51 @@ class Ledger:
         return record
 
 
-def verify(path: Path) -> int:
-    """Walk the chain. Returns the record count, or raises at the first seam.
+@dataclass(frozen=True, slots=True)
+class VerifiedChain:
+    """What ``verify`` established, including which format it read."""
+
+    schema: str
+    records: int
+
+
+def _genesis_for(first_prev: str) -> str:
+    """Identify the chain's format from its first link.
+
+    A ledger does not carry a format marker in every record - it carries one
+    genesis, and the first `prev_hash` names it. Trying both and reporting
+    which matched is honest; guessing from a filename would not be.
+    """
+    for schema, digest in GENESIS_BY_SCHEMA.items():
+        if first_prev == digest:
+            return schema
+    raise LedgerChainRefusal(
+        "ledger head chains no known genesis sentinel",
+        found_prev=first_prev,
+        known=sorted(GENESIS_BY_SCHEMA),
+    )
+
+
+def verify_chain(path: Path) -> VerifiedChain:
+    """Walk the chain. Returns what was verified, or raises at the first seam.
 
     Detects edits and interior gaps. Does NOT detect truncation of the tail:
     a chain with its last N records removed is internally consistent, which is
     exactly what a remote sink buys and this file does not.
     """
-    prev = GENESIS_HASH
-    count = 0
     if not path.exists():
-        return 0
+        return VerifiedChain(schema=LEDGER_SCHEMA, records=0)
+    count = 0
+    prev: str | None = None
+    schema = LEDGER_SCHEMA
     with path.open("r", encoding="utf-8") as handle:
         for lineno, line in enumerate(handle, start=1):
             if not line.strip():
                 continue
             record = json.loads(line)
+            if prev is None:
+                schema = _genesis_for(record["prev_hash"])
+                prev = GENESIS_BY_SCHEMA[schema]
             if record["prev_hash"] != prev:
                 raise LedgerChainRefusal(
                     "ledger chain seam",
@@ -138,4 +184,10 @@ def verify(path: Path) -> int:
                 )
             prev = _digest(_canonical(record))
             count += 1
-    return count
+    return VerifiedChain(schema=schema, records=count)
+
+
+def verify(path: Path) -> int:
+    """Record count only. Kept because callers that only want the count
+    should not have to learn a type to get one."""
+    return verify_chain(path).records

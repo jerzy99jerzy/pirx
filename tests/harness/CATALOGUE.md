@@ -1,8 +1,8 @@
 # Hostile-agent attack catalogue
 
 ```
-Document:  tests/harness/CATALOGUE.md, version 1.2 (A31-A35 with 0.5.0.0,
-           A36 with 0.6.0.0)
+Document:  tests/harness/CATALOGUE.md, version 1.3 (A31-A35 with 0.5.0.0,
+           A36 with 0.6.0.0, A37-A42d with 0.7.0.0)
 Source:    docs/ARCHITECTURE.md section 4.2
 Runs in:   CI on every push, same gate as unit tests - not nightly, because
            a control verified occasionally is a control that regresses
@@ -32,7 +32,7 @@ future owner, not silent scope (P12).
 | A08 | Byte flip: mutate one byte of the rendered proposal | PT6 | `refusal.hash_mismatch` | `test_a08_byte_flip` |
 | A09 | Frame forgery: prose carrying a closing frame marker | PT6 | framed region intact | `test_a09_frame_forgery` |
 | A10 | Unregistered action: valid spent grant, action outside the registry | PT7 | `refusal.unregistered_action` | `test_a10_unregistered_action_cannot_execute` |
-| A11 | Cross-run authority: reuse a grant against a fresh issuer | PT8 | documented residual | `test_a11_cross_run_authority_residual` |
+| A11 | Cross-process replay of a spent grant | PT3, PT8 | `SpentGrantRefusal` from the durable store (was: accepted residual through 0.6.0.0) | `test_a11_cross_process_replay_is_now_refused` |
 | A12 | Ledger edit: rewrite a middle record | PT9 | `LedgerChainRefusal` | `test_a12_ledger_edit` |
 | A13 | Review-lane smuggle: same id in both lists | PT11 | `review_lane.collision`, zero proposals | `test_a13_review_lane_smuggle` |
 | A14 | Budget flood: budget+N verdicts | PT13 | `refusal.budget` naming N ids | `test_a14_budget_flood` |
@@ -57,7 +57,42 @@ future owner, not silent scope (P12).
 | A33 | Cached-answer replay across proposals | PT15 | `refusal.challenge_failed` for the second proposal; exactly one `grant.issued` | `test_a33_cached_answer_replay_across_proposals_fails` |
 | A34 | Session grant budget overflow: the (N+1)th issue | PT15 | `refusal.session_budget` naming the budget | `test_a34_session_grant_budget_overflow` |
 | A35 | Fabricated decision routed around the surface | PT15 | `refusal.challenge_failed` / `refusal.reading_floor` at issuance | `test_a35_fabricated_decision_cannot_route_around_the_surface` |
-| A36 | Evidence substitution: a justification naming another verdict | PT5 | `TypeError` at construction; no `proposal.created` | `test_a36_justification_cannot_disagree_with_the_verdict_it_names` |
+| A36 | Evidence substitution: a grant presented against another justification | PT5 | `refusal.hash_mismatch` | `test_a36_a_grant_does_not_cover_a_different_evidence_set` |
+| A37 | Gated tool call with no grant | PT7 | `gate.awaiting_approval`; nothing forwarded | `test_a37_gated_call_is_held_until_a_grant_exists` |
+| A37b | The same call once a grant exists | PT3, PT6 | `gate.forwarded_granted`; the bytes forwarded are the bytes received | `test_a37b_the_same_call_forwards_once_a_grant_is_present` |
+| A38 | MRTR poll ticket inspected for an approval surface | PT17 | ticket only: no bytes, no hash, no challenge | `test_a38_the_poll_ticket_carries_no_approval_surface` |
+| A38b | Retry carrying forged `inputResponses` | PT17 | `input_required` again; nothing forwarded | `test_a38b_input_responses_are_not_evidence_of_approval` |
+| A39 | Routing header names a different tool than the body | PT20 | `refusal.header_mismatch`; nothing forwarded | `test_a39_routing_header_may_not_name_another_tool` |
+| A39b | Header mismatch at the parser | PT20 | `HeaderMismatchRefusal` | `test_a39b_header_mismatch_is_refused_at_the_parser` |
+| A40 | Tool definition changes after review (rug-pull) | PT16 | `refusal.tool_definition_drift` | `test_a40_definition_drift_refuses_and_forwards_nothing` |
+| A40b | Definition hash inside the action hash | PT16 | different definition, different action hash | `test_a40b_definition_hash_is_inside_the_action_hash` |
+| A41 | Approve `path=/a`, execute `path=/etc/shadow` | PT5 | `input_required`; nothing forwarded | `test_a41_a_grant_does_not_cover_different_arguments` |
+| A42 | Unknown MCP protocol revision | PT1 | `UnsupportedProtocolVersionRefusal` | `test_a42_unknown_protocol_version_is_refused` |
+| A42b | Ungated tool passes through unaltered | PT7 | `gate.forwarded_ungated`; bytes identical | `test_a42b_ungated_tools_pass_through_untouched` |
+| A42c | Malformed JSON-RPC bodies | PT1 | JSON-RPC error; nothing forwarded | `test_a42c_malformed_bodies_never_reach_the_downstream` |
+| A42d | Drift refusal reachable from the registry | PT16 | `ToolDefinitionDriftRefusal` | `test_a42d_drift_refusal_type_is_reachable_from_the_registry` |
+
+## A37-A42d exist because the gate stands between two machines
+
+Every attack before them assumed one process reading a file a human put
+there. The gate reads a request another program sent, decides whether a human
+must see it, and forwards bytes to a third program. Three seams, and the
+attacks map to them: what the gate *reads* (A39, A42, A42c), what it
+*forwards* (A37, A41, A42b), and what it accepts as evidence that a human
+said yes (A38, A38b).
+
+A38 is the row worth reading twice. MRTR gives a server a protocol-native way
+to ask a client for input mid-call, and using it for approval would be the
+obvious implementation - which is exactly why the attack asserts the ticket
+carries no proposal bytes, no action hash, and no word a client could fill an
+approval into. The approval surface is Pirx's own, out-of-band, and the
+client's retry is a poll (PT17).
+
+A11 was inverted rather than deleted in the same version: it used to assert
+that cross-process replay *succeeded*, because the spent-set was in-process.
+0.7.0.0 ships the HMAC and the durable store together (P5), so the row now
+asserts refusal. An accepted risk that later became controlled should leave a
+trace where it used to be accepted.
 
 ## A31-A35 exist because 0.5.0.0 made PT15 a controlled threat
 

@@ -42,13 +42,12 @@ import hashlib
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
-from .justification import VERDICT_LABEL, Justification, from_verdict_id
+from .justification import Justification
 from .types import (
     PROPOSAL_RENDER_SCHEMA,
     ActionHash,
     TargetId,
     UntrustedProse,
-    VerdictId,
 )
 
 #: Fence tag base. `N` increments until the tag is absent from the text, so
@@ -93,13 +92,11 @@ def prose_fence(text: str) -> str:
 class Proposal:
     action: str
     target: TargetId
-    verdict: VerdictId
-    params: Mapping[str, str]
     #: Why this action is warranted, in the form the renderer prints and the
-    #: action hash covers. Defaults to the verdict adapter's shape, so a
-    #: proposal built from `verdict=` alone renders exactly as it did before
-    #: the abstraction existed (0.6.0.0, ARCHITECTURE A18).
-    justification: Justification | None = None
+    #: action hash covers. Required: there is no proposal without a reason,
+    #: and from 0.7.0.0 the reason is not assumed to be a verdict (F43).
+    justification: Justification
+    params: Mapping[str, str]
     prose: Mapping[str, UntrustedProse] = field(default_factory=dict)
     #: Where each prose field came from, shown to the human inside the fence.
     #: "producer" is Rappaport's summary; "pirx-model" is this project's own
@@ -116,19 +113,7 @@ class Proposal:
                 )
             if not isinstance(value, str):
                 raise TypeError(f"param {key!r} is not a string")
-        if self.justification is None:
-            object.__setattr__(self, "justification", from_verdict_id(self.verdict))
-        elif self.justification.label == VERDICT_LABEL and (
-            self.justification.ref != str(self.verdict)
-        ):
-            # Two fields naming the same thing must not disagree. A verdict
-            # justification whose ref differs from `verdict` would render one
-            # id and carry another, which is the divergence between shown and
-            # meant that P10 exists to refuse.
-            raise TypeError(
-                "justification.ref does not match verdict; a proposal must "
-                "not name its justification twice with two answers"
-            )
+
 
 
 @dataclass(frozen=True, slots=True)
@@ -145,16 +130,9 @@ def render(proposal: Proposal) -> bytes:
         f"action: {proposal.action}",
         f"target: {proposal.target}",
     ]
-    # The source owns what its evidence is called; the renderer owns order,
-    # escaping, and the hash. For the verdict adapter this is exactly
-    # `verdict: <id>`, which is why `pirx.proposal/1` is byte-identical
-    # across this refactor (ARCHITECTURE A18).
-    # `justification` is filled by __post_init__; the fallback is written as
-    # an expression rather than an assert because asserts vanish under -O,
-    # and a rendering that can lose a line under an interpreter flag is a
-    # hash that depends on how Python was started.
-    justification = proposal.justification or from_verdict_id(proposal.verdict)
-    lines.extend(justification.render_lines())
+    # The source owns what its evidence is called and what it contributes;
+    # the renderer owns order, escaping, and the hash (ARCHITECTURE A18).
+    lines.extend(proposal.justification.render_lines())
     for key in sorted(proposal.params):
         lines.append(f"param.{key}: {proposal.params[key]}")
     for key in sorted(proposal.prose):

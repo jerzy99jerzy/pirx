@@ -39,10 +39,11 @@ itself.
 | Single-use and short-lived | 0.1.0.0 | The nonce is burned before the caller can act; expiry runs on a monotonic clock and is checked at spend, not at issue. |
 | What was approved is what was shown | 0.1.0.0 | One render function produces the bytes; those bytes are the hash preimage; the terminal prints them verbatim inside a random-boundary frame. A test compares captured stdout against the preimage byte-for-byte. |
 | Everything is an event | 0.1.0.0 | A hash-chained ledger records proposals, decisions, grants, spends, refusals, attempts, and results. |
+| A grant verifies outside the process that issued it | 0.7.0.0 | HMAC over the canonical scope, and a durable spend store where a burnt nonce is a file created with `O_EXCL`. The two ship together or not at all: either alone is unsound. |
 | Approval is measurably attentive | 0.5.0.0 | A grant needs `AttentionEvidence`: a hash-selected field transcribed from the rendered bytes, an answer above a length-derived floor, a session budget. Verified at the surface and again at issuance. Demonstrates the approver operated on those bytes - never that they understood them. |
 | Evidence is a type, not a field | 0.6.0.0 | Why an action is warranted arrives as a `Justification` from a source adapter, so a second kind of evidence is an addition rather than a rewrite. The verdict path renders the same bytes it always did, held as a golden preimage. |
 
-**You are here: 0.6.0.0.** The `Since` column is the version in which a
+**You are here: 0.7.0.0.** The `Since` column is the version in which a
 property became enforced, not the version that announced it; the marker is
 pinned to `STATUS.json` by the docs audit, so it cannot drift past a bump.
 
@@ -339,7 +340,7 @@ dispositioned as fixed, accepted with reasons, or deferred.
 | 0.4.0.0 | The model enters the proposer, behind the untrusted-prose fence. **Shipped.** |
 | 0.5.0.0 | Attentive approval (PT15): content-derived challenge, reading floor, session grant budget, attention evidence verified at issuance. **Shipped.** |
 | 0.6.0.0 | Justification-source abstraction; the verdict path becomes adapter #1, behaviour unchanged. **Shipped.** |
-| 0.7.0.0 | `pirx-gate`: stdio MCP proxy, first gated tool, PT16-PT18, process identity (see `docs/PIRX-GATE-DESIGN.md`) |
+| 0.7.0.0 | The gate: `tools/call` interception, adapter #2, HMAC grants with a durable spend store, `pirx.proposal/2` and `pirx.ledger/2`, PT16-PT20. **Shipped.** |
 | 0.8.0.0 | `pirx verify` report with the fatigue signal; attestation export (EU AI Act art. 14 / ISO 42001 language) |
 
 Deferred with named owners, not forgotten: HMAC grants plus a durable spend

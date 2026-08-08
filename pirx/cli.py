@@ -30,6 +30,7 @@ Does NOT:
 from __future__ import annotations
 
 import os
+import secrets
 import sys
 import time
 from collections.abc import Callable, Sequence
@@ -41,13 +42,43 @@ from . import approve as approval
 from .adapters.jira import JiraAdapter, JiraCredentials, UrllibTransport
 from .adapters.protocol import TicketAdapter
 from .errors import Refusal
-from .ledger import Ledger
+from .gate_approve import approve_pending
+from .grant import GrantIssuer, load_key
+from .ledger import Ledger, verify_chain
 from .model.client import AnthropicProposalModel, ModelCredentials
 from .model.client import UrllibTransport as ModelTransport
 from .model.protocol import ProposalModel
 from .reconcile import reconcile
 from .registry import PRODUCTION_REGISTRY, Registry
 from .session import Session
+from .spendstore import SpendStore
+from .types import GRANT_KEY_ENV, MIN_GRANT_KEY_BYTES
+
+
+def issuer_for(ledger_path: Path, clock: Callable[[], float]) -> GrantIssuer:
+    """Build the issuer for a single-process run.
+
+    Two topologies, and which one is in force is decided by whether a key
+    file exists - not by a flag, because a flag that switches a security
+    property is a security property that gets switched (P6):
+
+      - **No key file**: an ephemeral key is generated in this process. A
+        grant is then meaningless outside it, which is exactly the property
+        0.1.0.0 through 0.6.0.0 had by construction, restated rather than
+        lost. This is the correct mode for `pirx run`.
+      - **Key file present** (`PIRX_GRANT_KEY_FILE`): grants verify in
+        another process, which is what the gate needs. The durable spend
+        store sits beside the ledger, so the two records an auditor reads
+        together live together.
+    """
+    store = SpendStore(ledger_path.parent / f"{ledger_path.name}.spent")
+    configured = os.environ.get(GRANT_KEY_ENV)
+    key = (
+        load_key(Path(configured))
+        if configured
+        else secrets.token_bytes(MIN_GRANT_KEY_BYTES)
+    )
+    return GrantIssuer(clock=clock, key=key, store=store)
 
 
 def run(
@@ -62,6 +93,7 @@ def run(
 ) -> int:
     session = Session(
         Ledger(ledger_path), clock=clock, registry=registry,
+        issuer=issuer_for(ledger_path, clock),
         adapter=adapter, model=model,
     )
     session.started(str(payload_path))
@@ -138,6 +170,8 @@ USAGE = (
     "usage:\n"
     "  pirx run <verdict.json> [ledger.jsonl]\n"
     "  pirx reconcile <ledger.jsonl>\n"
+    "  pirx gate-approve <gate-dir> [ledger.jsonl]\n"
+    "  pirx verify <ledger.jsonl>\n"
     "\n"
     "Credentials come from the environment:\n"
     "  PIRX_JIRA_BASE_URL, PIRX_JIRA_EMAIL, PIRX_JIRA_TOKEN  (the write)\n"
@@ -196,6 +230,52 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 78
         for line in reconcile(Path(rest[0]), adapter):
             sys.stdout.write(line + "\n")
+        return 0
+
+    if command == "verify":
+        if len(rest) != 1:
+            sys.stderr.write(USAGE)
+            return 64
+        try:
+            verified = verify_chain(Path(rest[0]))
+        except Refusal as exc:
+            sys.stderr.write(f"ledger refused: {exc.message}\n")
+            return 3
+        sys.stdout.write(
+            f"{verified.schema}: {verified.records} record(s), chain intact\n"
+            "tail truncation is NOT detected; a remote append-only sink is "
+            "what buys that (threat model PT9)\n"
+        )
+        return 0
+
+    if command == "gate-approve":
+        if len(rest) not in (1, 2):
+            sys.stderr.write(USAGE)
+            return 64
+        gate_dir = Path(rest[0])
+        book = Path(rest[1]) if len(rest) == 2 else gate_dir / "ledger.jsonl"
+        configured = os.environ.get(GRANT_KEY_ENV)
+        if configured is None:
+            sys.stderr.write(
+                f"{GRANT_KEY_ENV} must name a key file: the gate verifies "
+                "grants in another process, and an ephemeral key would issue "
+                "authority nothing can check\n"
+            )
+            return 78
+        issuer = GrantIssuer(
+            clock=time.monotonic,
+            key=load_key(Path(configured)),
+            store=SpendStore(gate_dir / "spent"),
+        )
+        issued = approve_pending(
+            pending_dir=gate_dir / "pending",
+            grants_dir=gate_dir / "grants",
+            ledger=Ledger(book),
+            issuer=issuer,
+            out=sys.stdout,
+            read_line=sys.stdin.readline,
+        )
+        sys.stdout.write(f"{issued} grant(s) issued\n")
         return 0
 
     if command == "run":
