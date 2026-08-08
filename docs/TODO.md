@@ -1,42 +1,98 @@
 # TODO
 
 ```
-Document:  docs/TODO.md, version 1.4
+Document:  docs/TODO.md, version 2.0
 Scope:     small, non-scope-bearing work - documentation, tooling, ergonomics.
            Anything that changes what Pirx does, or accepts a risk, belongs in
            the brief's deferral table (section 9) with an owning version, not
            here.
+Format:    checklist, matching cve-digest's TODO.md - open items carry their
+           owner in bold, done items carry the version that closed them
 ```
 
-Every row names an owner, per family practice P12: an unowned item is a
-decision that will be re-argued later. "Next docs PR" is a legitimate owner;
-"someday" is not, and a row that cannot be given an owner is rejected rather
-than parked.
+Status legend: `[ ]` open, `[~]` in progress, `[x]` done (kept briefly for
+continuity, then moved to the version's review). Matches cve-digest's legend
+so a reader crossing between the repositories does not re-learn the marks.
 
-| # | Item | Owner | State |
-|---|---|---|---|
-| T1 | Convert README's pipeline diagram from ASCII art to Mermaid | 0.4.0.0 | **done** |
-| T2 | Same for README's Rappaport-to-Pirx flow diagram | 0.4.0.0 | **done** |
-| T3 | Split `gh pr create` from `gh pr checks --watch`; record `--auto` as the answer to a not-yet-mergeable PR and `--admin` as forbidden | 0.4.0.0 | **done** |
-| T4 | Contract test for the Jira adapter against a recorded response corpus | when a Jira schema change breaks production unnoticed | open, trigger-owned (review F15) |
-| T5 | Paginate `find_comment` | first observed false negative from reconciliation, or first adapter with a smaller page size | open, trigger-owned (F30) |
-| T6 | Vendor the real WORKFLOW.md, or leave section 8 as the convention record | exchange entry PX-0001 | open (F32) |
-| T7 | Confirm or strike the five `[cve-digest: confirm]` provenance lines in FAMILY.md | exchange entry PX-0001 | open (F35) |
-| T8 | `pirx verify <ledger>` subcommand, report including the fatigue signal derived from attention events | 0.8.0.0 | open, re-owned from 0.5.0.0 (brief v1.4: 0.5.0.0 is single-purpose attentive approval; the report is worth shipping once it can carry the PT15 signal) |
-| T9 | `pirx/__init__.py` docstring still describes 0.4.0.0 as the current version | 0.7.0.0 | **done** - rewritten in the feature commit, not the bump commit |
-| T10 | `ruff target-version` and `mypy python_version` say 3.12 while the brief and CI say 3.14 | next tooling PR | open - the checkers are lenient about a language level the project does not run on; decide whether to raise both or record the divergence with a reason |
-| T11 | Confirm `docs-audit` is a required status check on `main` | 0.6.0.0 push | **done** - all four contexts required (`ruff`, `mypy`, `pytest`, `docs-audit`), verified against the API |
-| T12 | `docs/MERGE-PROCEDURE.md` v1.0 lists three required checks; the protection requires four | next docs PR | open - the document is stale, the setting is correct |
-| T13 | Windows identity launcher | first version running the gate on Windows | open - research done (`docs/IDENTITY-WINDOWS.md`); code deliberately not written ahead of it |
-| T14 | Prune strategy for the pending queue and the spend store | first operator complaint about directory size | open, trigger-owned - neither expires anything on its own, and an automatic prune of a spend record is a replay window with a timer |
-| T15 | Streamable HTTP transport for the gate (stdio-only today) | 0.9.x | open - carries the explicit stdlib-only decision; if stdlib cannot carry it honestly, the constraint is amended with reasons, not worked around |
+Every item names an owner, per family practice P12: an unowned item is a
+decision that will be re-argued later. "Next docs PR" is a legitimate owner;
+"someday" is not, and an item that cannot be given an owner is rejected
+rather than parked.
+
+## Open
+
+- [ ] **0.8.0.0** `pirx verify` grows a report including the fatigue signal
+  derived from attention events. Re-owned from 0.5.0.0: that version is
+  single-purpose attentive approval, and the report is worth shipping once it
+  can carry the PT15 signal rather than a bare record count.
+  - The 0.7.0.0 local test produced the first real sample: `elapsed_seconds`
+    90.4 against a floor of 3.7. That number measures presence at the
+    terminal, not attention, so the signal has to be built on the lower tail
+    and the shape of the distribution, never on raw elapsed values.
+- [ ] **next tooling PR** `ruff target-version` and `mypy python_version` say
+  `py312` while the brief, `requires-python`, and CI all say 3.14. The
+  checkers are currently lenient about a language level the project does not
+  run on. Decide whether to raise both or to record the divergence with a
+  reason; either is fine, silence is not.
+- [ ] **next docs PR** `docs/MERGE-PROCEDURE.md` v1.0 lists three required
+  status checks. The protection on `main` requires four - `ruff`, `mypy`,
+  `pytest`, `docs-audit` - verified against the API during the 0.6.0.0 push.
+  The document is stale; the setting is correct.
+- [~] **exchange entry PX-0001** carries four convergence items across the
+  family: `docs/` filename casing (propose accept-as-is), the codename
+  blockquote (applied here), the TODO format (applied here), WORKFLOW.md
+  vendoring (F32), and the five `[cve-digest: confirm]` provenance lines
+  (F35). Entry authored at `docs/exchange/PX-0001.md`; awaiting the
+  cve-digest mirror.
+- [ ] **first version running the gate on Windows** The Windows identity
+  launcher. Research is done and shipped as `docs/IDENTITY-WINDOWS.md`; the
+  code is deliberately not written ahead of it, because the research
+  established that the macOS strength claim does not transfer and an artefact
+  written first would have carried a README promising it (PT19).
+- [ ] **0.9.x** Streamable HTTP transport for the gate, which is stdio-only
+  today. Carries the explicit stdlib-only decision: if the standard library
+  cannot carry it honestly, the constraint is amended in the brief with
+  reasons rather than worked around in code.
+
+### Trigger-owned
+
+Open items whose owner is a condition rather than a version. The condition is
+the commitment: it is what makes these deferrals rather than intentions.
+
+- [ ] **when a Jira schema change breaks production unnoticed** Contract test
+  for the Jira adapter against a recorded response corpus (F15).
+- [ ] **first observed false negative from reconciliation, or first adapter
+  with a smaller page size** Paginate `find_comment` (F30).
+- [ ] **first operator complaint about directory size** A prune strategy for
+  the pending queue and the spend store. Neither expires anything on its own
+  today, and that is deliberate: an automatic prune of a spend record is a
+  replay window with a timer on it.
+
+## Done recently
+
+- [x] **0.7.0.0** `pirx/__init__.py` described 0.4.0.0 as the current
+  version, four versions late. Rewritten in the feature commit, not the bump
+  commit - a bump commit carries version strings only, or it does not survive
+  rebase merge as a bump (F17).
+- [x] **0.6.0.0 push** Confirmed `docs-audit` is a required status check on
+  `main` and not merely a job that runs. All four contexts are required, read
+  from `gh api .../branches/main/protection` rather than from what
+  `gh pr checks` renders (F22).
+- [x] **0.4.0.0** Split `gh pr create` from `gh pr checks --watch`, and
+  recorded `--auto` as the answer to a not-yet-mergeable PR with `--admin`
+  named as forbidden.
+  - Chaining the two races GitHub: at PR creation the check runs may not
+    exist yet, so `--watch` returns immediately with nothing to watch.
+- [x] **0.4.0.0** Converted README's pipeline diagram and the
+  Rappaport-to-Pirx flow from ASCII art to Mermaid, with explicit
+  `classDef default` dark styling.
 
 ## Rejected
 
 Items considered and deliberately not kept, so they do not return:
 
 - **Automating pin refreshes for CI actions.** A bot that rewrites the
-  pipeline is the thing SHA pinning defends against (review F6).
+  pipeline is the thing SHA pinning defends against (F6).
 - **Automating the mutation runs.** A mutation-testing tool over the whole
-  suite is scope with a version owner, not a TODO row; until it has one, the
-  runs stay deliberate and manual (review F9).
+  suite is scope with a version owner, not a TODO item; until it has one, the
+  runs stay deliberate and manual (F9).

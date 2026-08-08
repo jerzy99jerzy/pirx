@@ -2,7 +2,7 @@
 
 ```
 Document:  tests/harness/CATALOGUE.md, version 1.3 (A31-A35 with 0.5.0.0,
-           A36 with 0.6.0.0, A37-A42d with 0.7.0.0)
+           A36 with 0.6.0.0, A37-A43 with 0.7.0.0)
 Source:    docs/ARCHITECTURE.md section 4.2
 Runs in:   CI on every push, same gate as unit tests - not nightly, because
            a control verified occasionally is a control that regresses
@@ -71,6 +71,7 @@ future owner, not silent scope (P12).
 | A42b | Ungated tool passes through unaltered | PT7 | `gate.forwarded_ungated`; bytes identical | `test_a42b_ungated_tools_pass_through_untouched` |
 | A42c | Malformed JSON-RPC bodies | PT1 | JSON-RPC error; nothing forwarded | `test_a42c_malformed_bodies_never_reach_the_downstream` |
 | A42d | Drift refusal reachable from the registry | PT16 | `ToolDefinitionDriftRefusal` | `test_a42d_drift_refusal_type_is_reachable_from_the_registry` |
+| A43 | Field-line forgery via intercepted-call arguments | PT2, PT6 | JSON escaping keeps the payload on one line; no forged field | `test_a43_arguments_cannot_forge_a_field_line` |
 
 ## A37-A42d exist because the gate stands between two machines
 

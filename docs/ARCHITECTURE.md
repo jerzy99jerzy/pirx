@@ -1,5 +1,10 @@
 # Pirx - architecture assumptions
 
+> Codename **Pirx** (package `pirx`). The name marks the discipline these
+> components enforce: authority is granted per action and checked against the
+> instruments - the hash, the grant, the ledger - never taken on the agent's
+> word.
+
 ```
 Document:   docs/ARCHITECTURE.md, version 2.0
 Refers to:  PIRX-PROJECT-BRIEF.md v1.5 (thesis, threat model PT1-PT20,

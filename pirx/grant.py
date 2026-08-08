@@ -298,6 +298,18 @@ class GrantIssuer:
         then coverage, then target, then time, then the durable burn. The
         nonce is spent before the caller can act, so a crash mid-action
         cannot leave reusable authority behind.
+
+        Two fields in the scope - ``target`` and ``justification`` - are also
+        rendered into the preimage, so ``action_hash`` already binds them and
+        a mismatch would fail the coverage check above. ``target`` is
+        nonetheless re-checked as an independent, readable assertion.
+        ``justification`` is not, deliberately: the caller with a
+        ``JustificationRef`` to compare against is the renderer that produced
+        the hash, so an independent check here would compare the field to a
+        value derived from the same bytes it was hashed from - a tautology
+        wearing a control's clothes (review F52, and P7). It stays in the
+        scope because removing it from the MAC coverage would be the change
+        that needs justifying, not keeping it.
         """
         expected = self._mac(grant.scope_bytes())
         if not hmac.compare_digest(expected, grant.mac):
