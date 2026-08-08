@@ -5,7 +5,7 @@
 not per session.**
 
 [![gate](https://github.com/jerzy99jerzy/pirx/actions/workflows/gate.yml/badge.svg)](https://github.com/jerzy99jerzy/pirx/actions/workflows/gate.yml)
-[![version](https://img.shields.io/badge/version-0.7.2.1-7aa2f7)](https://github.com/jerzy99jerzy/pirx/releases)
+[![version](https://img.shields.io/badge/version-0.7.2.2-7aa2f7)](https://github.com/jerzy99jerzy/pirx/releases)
 [![python](https://img.shields.io/badge/python-3.14%2B-7aa2f7)](https://www.python.org/downloads/)
 [![runtime deps](https://img.shields.io/badge/runtime%20deps-0-3ddc84)](pyproject.toml)
 [![tests](https://img.shields.io/badge/tests-208-3ddc84)](tests/)
@@ -68,7 +68,7 @@ itself.
 | Approval is measurably attentive | 0.5.0.0 | A grant needs `AttentionEvidence`: a hash-selected field transcribed from the rendered bytes, an answer above a length-derived floor, a session budget. Verified at the surface and again at issuance. Demonstrates the approver operated on those bytes - never that they understood them. |
 | Evidence is a type, not a field | 0.6.0.0 | Why an action is warranted arrives as a `Justification` from a source adapter, so a second kind of evidence is an addition rather than a rewrite. The verdict path renders the same bytes it always did, held as a golden preimage. |
 
-**You are here: 0.7.2.1.** The `Since` column is the version in which a
+**You are here: 0.7.2.2.** The `Since` column is the version in which a
 property became enforced, not the version that announced it; the marker is
 pinned to `STATUS.json` by the docs audit, so it cannot drift past a bump.
 

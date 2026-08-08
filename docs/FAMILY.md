@@ -4,12 +4,24 @@
 (cve-digest) and Pirx.**
 
 ```
-Document:       FAMILY.md, version 1.0
-Canonical home: cve-digest, docs/FAMILY.md
-Vendored by:    pirx, docs/FAMILY.md  (verbatim, version pinned in this header)
-Amended via:    the exchange protocol in section 3, never by direct edit
-                in a vendored copy
+Document:       FAMILY.md, version 1.1
+Canonical home: UNRESOLVED - see the note below and PX-0001 item 5
+Held by:        pirx, docs/FAMILY.md (currently the only copy in existence)
+Amended via:    the exchange protocol in section 3
 ```
+
+**Correction, 2026-08-08 (PX-0001 item 5).** Version 1.0 of this header
+declared cve-digest the canonical home and described this file as a verbatim
+vendored copy. Reading cve-digest at `main` established that **no FAMILY.md
+exists there**, and no `docs/exchange/` either. This file has always been the
+only copy. The claim was false from the day it was written, in the one
+document whose purpose is to keep two projects honest with each other, and it
+went unnoticed until an exchange entry needed a destination.
+
+The header no longer asserts a home it cannot point to. Resolving it - by
+creating the canonical copy in cve-digest, or by naming Pirx the home - is
+PX-0001 item 5 and belongs to the next crossing, not to a unilateral edit
+here.
 
 Two repositories, one author, one set of habits that were paid for in
 incidents. This document does two things: it names the practices so they can be
@@ -54,12 +66,20 @@ prudent.
 **Provenance status, stated because this document demands provenance and must
 hold itself to it (review finding F35).** Claims sourced to *Pirx* are
 verifiable in this repository: the code, tests, and reviews they name exist.
-Claims sourced to *Rappaport* are marked `[cve-digest: confirm]` - they were
-written from the project brief and from the author's account rather than read
-out of that repository, and this document was drafted in Pirx before it ever
-reached its declared canonical home. Confirming or striking them is the
-substance of exchange entry PX-0001. A provenance line that nobody checked is
-the thing P7 exists to refuse, and it went unchecked here for four versions.
+Claims sourced to *Rappaport* were once marked `[cve-digest: confirm]`: they
+had been written from the project brief and from the author's account rather
+than read out of that repository. **All five were resolved at PX-0001 against
+cve-digest `main` on 2026-08-08.** Four were confirmed in the code and now
+name the module that carries the evidence. One - P11's attribution to
+"Rappaport's sink discipline" - was struck as an over-interpretation built on
+a shared word rather than a shared mechanism.
+
+That ratio is the lesson. Four confirmations changed nothing; the single
+strike corrected a claim that had been quietly wrong for four versions in the
+document whose whole purpose is to keep two projects honest with each other.
+A provenance line that nobody checked is the thing P7 exists to refuse, and
+checking these produced exactly one thing worth knowing - which is the normal
+yield of an audit and the reason to run one anyway.
 
 **P1. Absolute-claim isolation.** A security thesis derives its value from
 having no qualifier. The moment a qualifier is needed, it gets its own
@@ -70,7 +90,8 @@ nothing" must stay absolute in Rappaport.)*
 **P2. Negative-space documentation.** Every module and every project registers
 what it does **not** do, with reasoning, before the code exists. Naming what a
 control does not buy is harder than building the control and is what reviewers
-actually weigh. *(Provenance: Rappaport's docstring convention `[cve-digest: confirm]`;
+actually weigh. *(Provenance: Rappaport's docstring convention, confirmed at
+cve-digest `main` 2026-08-08 in delivery.py, identity.py, verdict.py;
 Pirx brief section 2.)*
 
 **P3. Trust machinery before payload.** The verification vehicle - tests,
@@ -95,8 +116,9 @@ spend record is replayable.)*
 **P6. Security constants, not security configuration.** A limit that exists
 for a security reason is a constant in code. A configurable limit is a
 disabled limit on the day someone is in a hurry. *(Provenance: Pirx proposal
-budget; Rappaport's refusal to expose ranking weights as config
-`[cve-digest: confirm]`.)*
+budget; Rappaport's refusal to expose ranking weights as config, confirmed -
+`estate.WEIGHTS` and `vex.VEX_WEIGHTS` are module literals with no config
+path.)*
 
 **P7. Claims are measured, not asserted.** A number or a strength-word
 ("enforced", "proves") appears in documentation only when the code produces
@@ -106,7 +128,9 @@ v1.1.)*
 
 **P8. Contract ids are never repurposed.** A breaking change means a new
 schema id; the consumer supports both until it explicitly does not; the old id
-is retired, never redefined. *(Provenance: cve-digest.verdict/1 discipline `[cve-digest: confirm]`.)*
+is retired, never redefined. *(Provenance: cve-digest.verdict/1 discipline, confirmed - verdict.py states
+it, and `attach_tickets` documents an additive change that deliberately keeps
+the id.)*
 
 **P9. One-way arrows with a human backchannel.** Where a data flow must be
 one-directional, the reverse path is not merely absent - it is replaced by an
@@ -120,8 +144,11 @@ approval the agent authored. *(Provenance: Pirx renderer and PT6.)*
 
 **P11. Refusal is an event, never a warning.** Every guardrail that declines
 to proceed emits a structured, typed event with a reason. A warning that lets
-execution continue is not a control. *(Provenance: Rappaport's sink
-discipline `[cve-digest: confirm]`; Pirx errors.py convention.)*
+execution continue is not a control. *(Provenance: Pirx's errors.py convention. An earlier version of this line
+also credited "Rappaport's sink discipline"; that attribution was struck at
+PX-0001 after reading cve-digest - its sink discipline is about logging
+handlers and redaction, and its `notices` are `list[str]` prose, not typed
+events. The line was built on a shared word rather than a shared mechanism.)*
 
 **P12. Deferrals have owners.** Anything deliberately not built is listed with
 the version that owns it and the reason it is not owed now. An unowned
@@ -130,9 +157,10 @@ brief section 9.)*
 
 **P13. Verification and the action it guards never share a pasted block.**
 Command hygiene: the check that something worked is issued separately from the
-thing being checked, so a copy-paste cannot silently skip it. *(Provenance:
-inherited WORKFLOW.md `[cve-digest: confirm - no WORKFLOW.md is vendored
-in Pirx; see F32]`, paid for in an incident.)*
+thing being checked, so a copy-paste cannot silently skip it. *(Provenance: inherited
+WORKFLOW.md - confirmed to exist in cve-digest at doc version 1.6, and
+deliberately not yet vendored here; the vendor-or-declare decision is PX-0001
+item 6. Paid for in an incident.)*
 
 Amending this list is a convention-amendment exchange entry (section 3), so
 that a practice invented in one repo reaches the other deliberately.
