@@ -3,7 +3,50 @@
 from __future__ import annotations
 
 import json
+import os
+from collections.abc import Iterator
 from typing import Any
+
+import pytest
+
+#: Environment variables that change what the code under test does. The suite
+#: strips them from every test, automatically, because a suite that passes
+#: only in a clean shell is a suite that reports the shell rather than the
+#: code - and the operator most likely to run it is the one with
+#: `PIRX_GRANT_KEY_FILE` exported, because they are running a gate.
+#:
+#: This is not tidiness. A leaked key path made four unrelated attacks fail
+#: with `FileNotFoundError`, which is a false red; the same leak pointing at a
+#: *readable* key would have made `pirx run` silently use the gate's key in
+#: tests that assume an ephemeral one, which is a false green (0.7.1.0).
+PIRX_ENV_VARS = (
+    "PIRX_GRANT_KEY_FILE",
+    "PIRX_JIRA_BASE_URL",
+    "PIRX_JIRA_EMAIL",
+    "PIRX_JIRA_TOKEN",
+    "PIRX_ANTHROPIC_API_KEY",
+)
+
+
+@pytest.fixture(autouse=True)
+def _isolated_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> Iterator[None]:
+    """Strip Pirx's environment from every test. Autouse, no opt-out.
+
+    A test that genuinely needs one of these sets it itself with monkeypatch,
+    which makes the dependency visible in the test that has it.
+    """
+    for name in PIRX_ENV_VARS:
+        monkeypatch.delenv(name, raising=False)
+    yield
+
+
+def test_the_environment_is_stripped() -> None:
+    """The isolation fixture is itself measured. A fixture nobody checks is a
+    fixture that silently stops applying after a refactor."""
+    for name in PIRX_ENV_VARS:
+        assert name not in os.environ, f"{name} leaked into the suite"
 
 #: An action name that must never appear in the production registry; the
 #: harness asserts on it. Kept after the fixture that once used it was
