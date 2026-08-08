@@ -47,6 +47,10 @@ jobs:
         with:
           python-version: "3.14"
       - run: python tools/docs_audit.py
+      # Separate step, deliberately: a failure here names the manual rather
+      # than being buried inside a generic docs failure, and the manual is
+      # the document an operator trusts precisely where they cannot check.
+      - run: python tools/manual_audit.py
 
   tests:
     name: pytest
