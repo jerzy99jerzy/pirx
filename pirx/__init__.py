@@ -6,4 +6,4 @@ after a human approved the exact rendered bytes, and the grant that proves it
 verifies in a process that did not issue it.
 """
 
-__version__ = "0.7.0.0"
+__version__ = "0.7.0.2"
