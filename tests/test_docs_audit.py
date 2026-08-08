@@ -72,3 +72,40 @@ def test_docs_audit_detects_a_stale_position_marker(tmp_path: Path) -> None:
     )
     assert result.returncode == 1
     assert "You are here" in result.stderr or "position marker" in result.stderr
+
+
+def test_manual_audit_passes() -> None:
+    """The manual quotes constants, refusal names, and event names. Every one
+    is a fact about the code, and a manual whose facts drift is worse than no
+    manual: an operator trusts it exactly where they cannot check."""
+    result = subprocess.run(
+        [sys.executable, str(ROOT / "tools" / "manual_audit.py")],
+        capture_output=True, text=True, cwd=ROOT,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_manual_audit_detects_a_drifted_constant(tmp_path: Path) -> None:
+    """The tripwire's own failure mode is measured (the F9 lesson)."""
+    import shutil
+
+    work = tmp_path / "repo"
+    shutil.copytree(
+        ROOT, work,
+        ignore=shutil.ignore_patterns(
+            ".git", "__pycache__", ".venv", "*.jsonl",
+            ".mypy_cache", ".pytest_cache", ".ruff_cache",
+        ),
+    )
+    manual = work / "docs" / "MANUAL.md"
+    manual.write_text(
+        manual.read_text().replace(
+            "| `GRANT_TTL_SECONDS` | 300.0 |", "| `GRANT_TTL_SECONDS` | 900.0 |"
+        )
+    )
+    result = subprocess.run(
+        [sys.executable, str(work / "tools" / "manual_audit.py")],
+        capture_output=True, text=True, cwd=work,
+    )
+    assert result.returncode == 1
+    assert "GRANT_TTL_SECONDS" in result.stderr
