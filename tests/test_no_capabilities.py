@@ -51,7 +51,8 @@ NETWORK_ALLOWLIST: frozenset[str] = frozenset(
 #: system Pirx acts upon without a grant, and a local queue file is not one.
 #: A future entry that does reach a target system is a finding, not a widening.
 FILE_WRITE_ALLOWLIST: frozenset[str] = frozenset(
-    {"ledger.py", "spendstore.py", "mcp/gate.py", "gate_approve.py"}
+    {"ledger.py", "spendstore.py", "mcp/gate.py", "gate_approve.py",
+     "mcp/pump.py"}
 )
 
 NETWORK_MODULES = {
@@ -234,17 +235,79 @@ def test_no_network_imports_outside_the_allowlist() -> None:
     assert not offenders, f"network reach outside allowlist: {offenders}"
 
 
+#: The one module allowed to spawn a process, and the rule it must satisfy.
+#: `mcp/pump.py` launches the downstream MCP server, which is the whole point
+#: of a gate that sits in front of one. The rule this allowlist enforces is
+#: **not** "the pump is trusted" - it is: *the only argv the pump may spawn is
+#: the one the operator typed at launch.* Nothing from a payload, a verdict, a
+#: tool definition, or a model may reach it. That property is asserted below
+#: rather than assumed, because an allowlist entry with no accompanying
+#: assertion is how a rule becomes a name (0.7.1.0, review F56).
+PROCESS_SPAWN_ALLOWLIST: frozenset[str] = frozenset({"mcp/pump.py"})
+
+
 def test_no_process_or_shell_reach_anywhere() -> None:
-    """No module may spawn a process. `os` is judged by attribute, not by
-    import, so reading `os.environ` stays legal and `os.system` does not."""
+    """No module may spawn a process, except the pump. `os` is judged by
+    attribute, not by import, so reading `os.environ` stays legal and
+    `os.system` does not."""
     offenders: list[str] = []
     for path in modules():
+        if rel(path) in PROCESS_SPAWN_ALLOWLIST:
+            continue
         tree = ast.parse(path.read_text())
         hits = sorted(imported_roots(tree) & SUBPROCESS_MODULES)
         os_hits = sorted(called_attrs(tree) & OS_PROCESS_ATTRS)
         if hits or os_hits:
             offenders.append(f"{rel(path)}: modules={hits} os={os_hits}")
     assert not offenders, f"process reach present: {offenders}"
+
+
+def test_the_pump_spawns_only_operator_supplied_argv() -> None:
+    """The pump's spawn takes its command from `main`'s argv and from nothing
+    else. If a future edit routed a payload field, a tool name, or model text
+    into it, the gate would become a way to run arbitrary programs by sending
+    it a message - which is the excessive-agency failure the whole project is
+    built against.
+
+    Checked structurally: `Popen` is called exactly once, its first argument
+    is the instance attribute set from the constructor parameter, and the
+    constructor is called exactly once in the module, from `main`, with a
+    slice of argv.
+    """
+    source = (PACKAGE / "mcp" / "pump.py").read_text()
+    tree = ast.parse(source)
+
+    popens = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "Popen"
+    ]
+    assert len(popens) == 1, f"expected exactly one Popen, found {len(popens)}"
+
+    first = popens[0].args[0]
+    assert isinstance(first, ast.Attribute) and first.attr == "command", (
+        "Popen's command must be the stored constructor argument, not an "
+        "expression built at the call site"
+    )
+
+    # `shell=True` would make the command a string parsed by a shell, which
+    # turns any character in it into a potential operator.
+    for keyword in popens[0].keywords:
+        assert keyword.arg != "shell", "the pump must never spawn through a shell"
+
+    constructions = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "DownstreamProcess"
+    ]
+    assert len(constructions) == 1, "the downstream is constructed exactly once"
+    # Its argument is derived from argv, by name, in main().
+    assert isinstance(constructions[0].args[0], ast.Name)
+    assert constructions[0].args[0].id == "command"
 
 
 def test_the_scrape_sees_subpackages() -> None:
@@ -310,7 +373,7 @@ def test_allowlist_is_minimal_and_named() -> None:
 #: ledger *before* converting it, which is the property that matters and is
 #: asserted below rather than assumed.
 TERMINAL_CATCH_SITES: frozenset[str] = frozenset(
-    {"cli.py", "mcp/gate.py", "gate_approve.py"}
+    {"cli.py", "mcp/gate.py", "gate_approve.py", "mcp/pump.py"}
 )
 
 

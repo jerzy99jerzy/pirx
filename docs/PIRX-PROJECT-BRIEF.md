@@ -6,7 +6,7 @@ Project brief and first-sprint specification. Self-contained: executable in a
 fresh session with no context beyond this file.
 
 ```
-Brief version:  1.5   (changelog in section 11)
+Brief version:  1.6   (changelog in section 11)
 Repository:     github.com/jerzy99jerzy/pirx   (to be created)
 Consumes:       cve-digest.verdict/1
 Produced by:    github.com/jerzy99jerzy/cve-digest (display codename Rappaport)
@@ -314,6 +314,7 @@ Numbered `PT` to avoid collision with Rappaport's `T` series.
 | **0.5.0.0** | Attentive approval (PT15): content-derived challenge, reading floor, session grant budget, `AttentionEvidence` verified at issuance, attention events in the ledger, harness attacks A31-A35. No gate code. Supersedes the former 0.5.0.0 row ("second capability: create a change record") - the substitution is recorded in the v1.4 changelog, not made silently; the second capability returns as the first gated tool at 0.7.0.0. |
 | 0.6.0.0 | The justification-source abstraction: the verdict path becomes adapter #1 with zero behaviour change, proven by the existing suite passing unmodified; `CONTRACT.md` grows the abstraction. |
 | **0.7.0.0** | The gate, and the three coupled format changes it forces: `pirx.proposal/2` (justification in the preimage, `verdict` removed), `pirx.ledger/2` (field rename, both formats still readable), `pirx.intercepted-call/1` (adapter #2). Ships the pair settled decision 2 owed - HMAC grants **and** a durable spend store, together. `pirx-gate` intercepts `tools/call`, `pirx gate-approve` is the out-of-band surface, `pirx verify` reads either ledger format. Threat rows PT16-PT20; harness A37-A42d. Gated registry empty, as the capability registry was in 0.1.0.0. |
+| **0.7.1.0** | `pirx-gate` becomes a process: the stdio pump (framing, bounded frames, a downstream child, stdout that carries protocol only), harness A44-A47, and `docs/MANUAL.md` - the first operator-facing document the project has had. |
 | 0.8.0.0 | `pirx verify` report including the fatigue signal derived from attention events (T8's new owner); attestation export mapping ledger evidence to EU AI Act art. 14 / ISO 42001 demonstrable-oversight language. |
 
 The ordering is deliberate and mirrors Rappaport's: the trust machinery ships
@@ -518,6 +519,24 @@ the level of this brief:
 ---
 
 ## 11. Changelog
+
+**v1.6** - the pump, and the manual.
+
+- `pirx-gate` is a process. 0.7.0.0 shipped the whole decision path and no way
+  to run it; `pirx/mcp/pump.py` and the `pirx-gate` console script close that,
+  and the documentation that described the process in the present tense is now
+  accurate rather than aspirational.
+- The package scrape's process-reach rule is restated rather than widened: the
+  pump may spawn, and **the only argv it may spawn is the one the operator
+  typed at launch** - asserted structurally, since nothing from a payload, a
+  tool definition, or a model may reach it.
+- `docs/MANUAL.md`: the operator-facing document. Both entry points, the
+  approval prompt explained, ledger reading, an exit-code table, and every
+  typed refusal with its usual cause.
+- Harness A44-A47 cover the properties a transport can break without the gate
+  noticing: frame boundaries, an oversized line that must be drained rather
+  than split, a dead downstream that must not be reported as a refusal, and
+  stdout carrying protocol only.
 
 **v1.5** - the gate, and the format changes it forces. Load-bearing changes:
 

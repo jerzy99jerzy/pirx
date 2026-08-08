@@ -54,7 +54,7 @@ itself.
 | Approval is measurably attentive | 0.5.0.0 | A grant needs `AttentionEvidence`: a hash-selected field transcribed from the rendered bytes, an answer above a length-derived floor, a session budget. Verified at the surface and again at issuance. Demonstrates the approver operated on those bytes - never that they understood them. |
 | Evidence is a type, not a field | 0.6.0.0 | Why an action is warranted arrives as a `Justification` from a source adapter, so a second kind of evidence is an addition rather than a rewrite. The verdict path renders the same bytes it always did, held as a golden preimage. |
 
-**You are here: 0.7.0.2.** The `Since` column is the version in which a
+**You are here: 0.7.1.0.** The `Since` column is the version in which a
 property became enforced, not the version that announced it; the marker is
 pinned to `STATUS.json` by the docs audit, so it cannot drift past a bump.
 
@@ -304,6 +304,7 @@ that landed in 0.6.0.0.
 |---|---|
 | `mcp/protocol.py` | Parses MCP messages as hostile input; enumerated protocol versions; refuses any header/body disagreement (PT20) |
 | `mcp/gate.py` | Interception, the gated registry, the pending queue, the MRTR poll ticket, forwarding the received bytes |
+| `mcp/pump.py` | The `pirx-gate` process: spawns the downstream server, frames stdio JSON-RPC, and does nothing else |
 | `gate_approve.py` | The out-of-band approval surface for gated calls |
 | `justification.py` | Why an action is warranted: verdict adapter, intercepted-call adapter |
 | `grant.py` | HMAC over the canonical scope; issue, verify, spend |
@@ -418,11 +419,12 @@ dispositioned as fixed, accepted with reasons, or deferred.
 
 | Document | Contents |
 |---|---|
+| **`docs/MANUAL.md`** | **Start here to use it**: install, both entry points, what to do at an approval prompt, reading the ledger, every refusal and what it means |
 | `docs/PIRX-PROJECT-BRIEF.md` | Thesis, threat model, version plan, settled decisions and the deferral table |
 | `docs/THESIS.md` | Why approval is a capability grant, not a checkbox |
-| `docs/THREAT-MODEL.md` | PT1-PT14, each with its control or its named acceptance, and the test that measures it |
+| `docs/THREAT-MODEL.md` | PT1-PT20, each with its control or its named acceptance, and the test that measures it |
 | `docs/CONTRACT.md` | The `cve-digest.verdict/1` contract and the consumer-owned compatibility matrix |
-| `docs/ARCHITECTURE.md` | Implementation-level assumptions for 0.1.0.0-0.3.0.0 |
+| `docs/ARCHITECTURE.md` | Implementation-level assumptions, every shipped sprint |
 | `docs/MERGE-PROCEDURE.md` | Branch protection, rebase, tags |
 | `docs/FAMILY.md` | Vendored family practices and the human-carried exchange protocol |
 | `docs/TODO.md` | Small non-scope work, each row with a named owner |
@@ -444,6 +446,7 @@ dispositioned as fixed, accepted with reasons, or deferred.
 | 0.5.0.0 | Attentive approval (PT15): content-derived challenge, reading floor, session grant budget, attention evidence verified at issuance. **Shipped.** |
 | 0.6.0.0 | Justification-source abstraction; the verdict path becomes adapter #1, behaviour unchanged. **Shipped.** |
 | 0.7.0.0 | The gate: `tools/call` interception, adapter #2, HMAC grants with a durable spend store, `pirx.proposal/2` and `pirx.ledger/2`, PT16-PT20. **Shipped.** |
+| 0.7.1.0 | `pirx-gate` as a process: the stdio pump, plus the user manual (`docs/MANUAL.md`). **Shipped.** |
 | 0.8.0.0 | `pirx verify` report with the fatigue signal; attestation export (EU AI Act art. 14 / ISO 42001 language) |
 
 Deferred with named owners, not forgotten: HMAC grants plus a durable spend

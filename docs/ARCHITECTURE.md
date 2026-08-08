@@ -6,14 +6,15 @@
 > word.
 
 ```
-Document:   docs/ARCHITECTURE.md, version 2.0
+Document:   docs/ARCHITECTURE.md, version 2.1
 Refers to:  PIRX-PROJECT-BRIEF.md v1.5 (thesis, threat model PT1-PT20,
             version plan), FAMILY.md v1.0 (practices P1-P13),
             PIRX-GATE-DESIGN.md v1.1 (0.5.0.0-0.8.0.0 direction)
 Covers:     every shipped sprint: 0.1.0.0 (trust loop), 0.2.0.0 (harness),
             0.3.0.0 (first capability), 0.4.0.0 (model entry), 0.5.0.0
             (attentive approval), 0.6.0.0 (justification abstraction),
-            0.7.0.0 (the gate, and three format changes)
+            0.7.0.0 (the gate, and three format changes), 0.7.1.0 (the
+            stdio pump, and the manual)
 Authority:  implementation level only. Where this document appears to
             conflict with the brief or a threat-model row, the brief wins
             and the conflict is a finding (FAMILY.md section 4). Settled
@@ -52,8 +53,8 @@ through the protocol would render inside the trust domain of the party under
 review (PT17). So the approver sits at a second process:
 
 ```
-pirx-gate                      # spawned by the agent host, holds the call
-pirx gate-approve <gate-dir>   # a human, on a terminal the gate does not own
+pirx-gate <gate-dir> -- <downstream-server-command>   # spawned by the host
+pirx gate-approve <gate-dir>                          # a human, elsewhere
 ```
 
 This is the day settled decision 2 came due, and it was paid in full and in
@@ -513,6 +514,31 @@ action hash. Three coupled changes, therefore one version, never three
 `/1` is retired as a **writer**, not as a **reader**: `verify_chain` keeps both
 genesis sentinels and reports which it matched. A hash chain nobody can still
 check is not an audit trail.
+
+### 5D.1a The pump (0.7.1.0)
+
+`Gate` decides; `mcp/pump.py` is the process that lets a decision reach two
+real programs. It spawns the downstream server as a child, reads
+newline-delimited JSON-RPC from its own stdin, hands each frame to the gate,
+and writes the answer to its own stdout. Everything in it is transport, and
+it stays thin deliberately: a pump that started making decisions would be a
+second place where authority is reasoned about.
+
+Four properties it must hold, each with a harness attack behind it:
+
+| Property | Why | Attack |
+|---|---|---|
+| One frame in, one frame out, in order | A pipelining pump would let an ungated call overtake a held one and land first, so the ledger's order would stop matching what happened | A44 |
+| An oversized line is refused **and drained** | `readline` with a size cap stops mid-line, so an undrained tail is read as a new frame - a peer could hide a crafted call behind padding and have the bounds check smuggle it in | A45, A45c |
+| A dead downstream is not a refusal | A JSON-RPC error would tell the caller a decision was made. The pump records the fact and exits | A46 |
+| stdout carries protocol only | One diagnostic line there corrupts the stream for the agent host; diagnostics go to stderr | A47 |
+
+The spawn is the one place in the codebase that starts a process, so the
+package scrape's rule is restated rather than merely widened for it: **the
+only argv the pump may spawn is the one the operator typed at launch.**
+Nothing from a payload, a verdict, a tool definition, or a model may reach it,
+and a structural test asserts exactly one `Popen`, taking its command from the
+stored constructor argument, never through a shell.
 
 ### 5D.2 The gate's data path
 
