@@ -48,8 +48,26 @@ replay-over-expiry ordering test.
 ## PT4 - Stale approval
 
 **Control.** Short expiry measured on a **monotonic** clock, checked at spend
-time. Single process, so there is no clock to skew or roll back; a serialised
-grant is meaningless outside its process by construction. Residual, named:
+time.
+
+**Correction, 0.7.3.0 (F60).** This row read "Single process, so there is no
+clock to skew or roll back; a serialised grant is meaningless outside its
+process by construction." That stopped being true at 0.7.0.0, when the gate
+split issuance (`gate-approve`) from spending (`pirx-gate`) into two
+processes. The wording survived two versions. What the code actually does is
+compare a monotonic deadline written by one process against a monotonic
+reading taken in another, and CPython documents the reference point of
+`time.monotonic` as undefined outside a single process - so the comparison is
+sound on Linux and macOS by implementation detail rather than by contract.
+`grant.py`'s own header, meanwhile, announces that expiry moved to the wall
+clock, which the code never did. **The decision is open and owned** (see
+`docs/TODO.md`): adopt the wall clock the header already describes and accept
+the named clock-rollback exposure, or keep monotonic and state the
+platform assumption as a supported-platform constraint. Either is defensible;
+the previous state - three documents disagreeing with each other and with the
+code - was not.
+
+Residual, named:
 the human's absence *before* approval is not covered by expiry - the approval
 surface prints the proposal's age as a labelled decision aid.
 **Lives in** `grant.py`, `approve.py`. **Measured by**
@@ -107,7 +125,17 @@ guarded action. Verifier ships in the same module. **Named residual:** tail
 truncation is *not* detected, asserted by
 `test_ledger_chain.py::test_tail_truncation_is_NOT_detected`; a remote
 append-only sink buys that later (deferral table).
-**Lives in** `ledger.py`. **Measured by** `test_ledger_chain.py`.
+
+Since 0.7.3.0 an append also takes an exclusive `flock` and re-reads the tail
+inside it, because the gate topology has **two writers on one file**: the
+long-lived pump and each `gate-approve` queue walk. Before that fix the
+second writer's records were chained past, and `pirx verify` refused a ledger
+produced by the manual's own procedure (F59). **Named residual:** `flock` is
+advisory and local, so the ordering claim covers writers on one filesystem
+and nothing else; a shared or networked ledger is the first networked
+transport and fires PT14's trigger rather than arriving quietly.
+**Lives in** `ledger.py`. **Measured by** `test_ledger_chain.py`, in
+particular `test_two_writers_on_one_file_keep_the_chain_intact`.
 
 ## PT10 - Feedback loop toward the ranking system
 

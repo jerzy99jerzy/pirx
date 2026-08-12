@@ -82,9 +82,15 @@ READING_FLOOR_BASE_SECONDS = 2.0
 READING_FLOOR_SECONDS_PER_KIB = 2.0
 
 #: Session grant budget (PT15): grants issued by one issuer before it refuses.
-#: In the single-run topology the PT13 proposal budget (10) binds first, so
-#: this constant's bite arrives with a long-lived approval surface (the gate,
-#: 0.7.0.0). The primitive ships and is attacked now, per family practice P3.
+#: In the single-run topology the PT13 proposal budget (10) binds first.
+#: Corrected at 0.7.3.0 (F61): this was said to bite once the gate shipped a
+#: long-lived approval surface, and the gate deliberately did the opposite -
+#: `gate-approve` walks the pending queue once and exits, so a "session" is
+#: one queue walk and a fresh issuer starts each one. The budget therefore
+#: bounds a single walk, not an operator's day. That is a fatigue bound and
+#: not an authority bound; every grant in every walk still costs a passed
+#: challenge above the reading floor. The primitive ships and is attacked
+#: now, per family practice P3.
 MAX_GRANTS_PER_SESSION = 20
 
 #: Attention-challenge field pool (PT15). The field the approver must

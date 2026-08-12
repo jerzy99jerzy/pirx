@@ -6,7 +6,7 @@ Project brief and first-sprint specification. Self-contained: executable in a
 fresh session with no context beyond this file.
 
 ```
-Brief version:  1.7   (changelog in section 11)
+Brief version:  1.8   (changelog in section 11)
 Repository:     github.com/jerzy99jerzy/pirx
 Consumes:       cve-digest.verdict/1
 Produced by:    github.com/jerzy99jerzy/cve-digest (display codename Rappaport)
@@ -14,7 +14,7 @@ Language:       Python 3.14, English throughout
 Workflow:       conventions listed in section 8, adopted from cve-digest
                 practice. No WORKFLOW.md is vendored here (see F32)
 Versioning:     0.MAJOR.FEATURE.MICRO, same four-segment scheme
-Status:         shipped through 0.7.2.0; the authoritative version
+Status:         shipped through 0.7.3.0; the authoritative version
                 state is STATUS.json and README's version plan, never
                 this line
 ```
@@ -318,6 +318,7 @@ Numbered `PT` to avoid collision with Rappaport's `T` series.
 | **0.7.0.0** | The gate, and the three coupled format changes it forces: `pirx.proposal/2` (justification in the preimage, `verdict` removed), `pirx.ledger/2` (field rename, both formats still readable), `pirx.intercepted-call/1` (adapter #2). Ships the pair settled decision 2 owed - HMAC grants **and** a durable spend store, together. `pirx-gate` intercepts `tools/call`, `pirx gate-approve` is the out-of-band surface, `pirx verify` reads either ledger format. Threat rows PT16-PT20; harness A37-A42d. Gated registry empty, as the capability registry was in 0.1.0.0. |
 | **0.7.1.0** | `pirx-gate` becomes a process: the stdio pump (framing, bounded frames, a downstream child, stdout that carries protocol only), harness A44-A47, and `docs/MANUAL.md` - the first operator-facing document the project has had. |
 | 0.7.2.0 | `docs/MANUAL.md` v2.0, the full operator manual, and `tools/manual_audit.py` - a fifth required CI check that fails when the manual's stated facts drift from the code. Shipped without a row in this table until brief v1.7, which is the drift the audit tools do not cover: they check pins and markers, not whether a shipped version was planned. |
+| 0.7.3.0 | The ledger the gate topology can verify. 0.7.0.0 split approval from execution into two processes and left `ledger.py` caching a head hash at construction, so the long-lived pump chained past every record `gate-approve` wrote and `pirx verify` refused a ledger produced by following the manual exactly (F59). Appends now take an exclusive lock and chain from disk. Carries two corrections the finding turned up: PT4's single-process claim (F60, open) and the session budget's claimed long-lived surface (F61). |
 | 0.8.0.0 | `pirx verify` report including the fatigue signal derived from attention events (T8's new owner); attestation export mapping ledger evidence to EU AI Act art. 14 / ISO 42001 demonstrable-oversight language. |
 | 0.9.0.0 | Streamable HTTP transport for the gate, which is stdio-only today. Carries two things the transport forces rather than invites: the stdlib-only constraint, amended in this brief with reasons if the standard library cannot carry it honestly rather than worked around in code; and **PT14's trigger, which this version fires** - a payload crossing a network makes the detached signature a control row instead of an accepted risk. Re-homed from `docs/TODO.md` in brief v1.7, where it was scope living in a file whose own header excludes scope. |
 
@@ -576,6 +577,24 @@ the level of this brief:
 ---
 
 ## 11. Changelog
+
+**v1.8** - the two-writer ledger, and two claims that outlived their topology.
+
+- **0.7.3.0 gets a row**, planned in the same version it shipped rather than
+  retrofitted. The defect it closes is the kind this project is supposed to be
+  good at catching: not a missing control, but a control whose assumption
+  (one writer) was silently invalidated by a shipped feature (the gate's two
+  processes) two versions earlier, in a module nobody had reason to reopen.
+- **Two documentation corrections travel with it.** PT4 still described a
+  single-process topology, and `grant.py` announced a move to the wall clock
+  the code never made; the session-budget constant claimed a bite that
+  arrives with a long-lived approval surface the gate deliberately does not
+  have. The clock question is named as open with an owner rather than closed
+  by editing prose to match whichever behaviour shipped.
+- Recorded honestly: all three were found by reading the code against its own
+  documentation, not by a check. `docs_audit.py` verifies pins, markers,
+  badges, and numbering - none of which can see a docstring that contradicts
+  the module beneath it.
 
 **v1.7** - drift repair, and the terminus the plan never had.
 

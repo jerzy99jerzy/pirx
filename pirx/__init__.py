@@ -1,9 +1,9 @@
 """Pirx: a write-capable remediation agent whose authority is granted per
 action, not per session.
 
-Version 0.7.0.0: the gate. A high-impact MCP `tools/call` is forwarded only
-after a human approved the exact rendered bytes, and the grant that proves it
-verifies in a process that did not issue it.
+Version 0.7.3.0: the ledger the gate topology can actually verify. Two
+processes write one gate ledger, so appends are ordered by the kernel and
+chained from what is on disk rather than from a head cached at construction.
 """
 
 __version__ = "0.7.2.2"

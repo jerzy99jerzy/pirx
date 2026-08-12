@@ -23,13 +23,19 @@ stateless-verifiable grant with no durable spend record is replayable across
 restarts, and a durable record without a verifiable grant protects nothing
 (P5). Two consequences follow and are stated rather than discovered:
 
-  - **Expiry moves to the wall clock.** A monotonic deadline is meaningless
-    in another process, and a grant that crosses a process boundary must
-    carry a deadline the reader can evaluate. The cost is real and named: an
-    operator who moves the system clock backwards extends a grant's life.
-    That is a smaller exposure than a grant that cannot be checked at all,
-    and it is a threat-model line (PT4's control text says so), not a
-    silence.
+  - **Expiry must move to the wall clock, and has not. UNRESOLVED (F60).**
+    The argument stands: a monotonic deadline is meaningless in another
+    process, and a grant that crosses a process boundary must carry a
+    deadline the reader can evaluate. Every wiring site nonetheless still
+    injects `time.monotonic`, so what ships compares a deadline written by
+    `gate-approve` against a reading taken in `pirx-gate` - sound on Linux
+    and macOS because both anchor the clock at boot, undefined by CPython's
+    own contract. The decision between adopting the wall clock (accepting
+    that an operator who moves the system clock backwards extends a grant's
+    life) and keeping monotonic (stating the platform assumption as a
+    supported-platform constraint) is the owner's, is in `docs/TODO.md`, and
+    is not being made here by editing a docstring to match whichever the code
+    happens to do.
   - **A grant is now a serialisable artefact.** It is therefore also a thing
     an attacker can copy. The MAC makes forgery hard; the spend store makes
     a copy useless; neither makes the file secret, and nothing in the design
@@ -41,10 +47,10 @@ Does NOT:
     this module, which the package scrape enforces.
   - expose a constructor that bypasses an approving decision. ``issue`` takes
     the decision object; there is no other path to a ``Grant``.
-  - use the wall clock. Expiry is a monotonic deadline, so it cannot be moved
-    by changing the system time, and a serialised grant is meaningless
-    outside its process - which conveniently enforces the single-process
-    topology the design assumes (ARCHITECTURE A3).
+  - claim that a serialised grant is meaningless outside its process. It was
+    through 0.6.0.0 and the line survived into 0.7.x saying so; since the
+    gate, a grant is a file two processes read. See the UNRESOLVED clock note
+    above rather than trusting this section for that property.
   - refund on failure. A failed execution consumed real authority; re-issuing
     is a human decision made with the ledger in hand (ARCHITECTURE A12).
 """

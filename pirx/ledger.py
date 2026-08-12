@@ -26,6 +26,13 @@ Does NOT:
   - rotate, compress, encrypt, or ship anywhere. Local file. Tail truncation
     is the residual risk a remote append-only sink buys later; it is named in
     the threat model rather than papered over here.
+  - serialise writers across hosts, or fall back to an unlocked append when
+    locking is unavailable. `flock` is POSIX and advisory: it orders the
+    writers this project ships, on one filesystem, and nothing else. The
+    `fcntl` import is deliberately hard rather than guarded - a silent
+    no-op lock on a platform without it would be a warning that lets
+    execution continue, which is the thing P11 exists to refuse. Windows
+    support is a named deferral, and this is one more thing it owes.
   - carry payload prose. Verdict text may describe unpatched estate and this
     file is SIEM-bound, so records hold ids, counts, and reasons only
     (ARCHITECTURE A8).
@@ -35,13 +42,14 @@ Does NOT:
 
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import json
 import os
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import IO, Any
 
 from .errors import LedgerChainRefusal
 from .types import LEDGER_GENESIS_SENTINEL, LEDGER_GENESIS_SENTINEL_V1, LEDGER_SCHEMA
@@ -88,11 +96,32 @@ class LedgerRecord:
 
 
 class Ledger:
-    """Append-only sink over a single JSONL file."""
+    """Append-only sink over a single JSONL file.
+
+    **Two writers, from 0.7.3.0.** Through 0.7.2.2 an instance cached the
+    sequence number and head hash at construction and trusted them for the
+    rest of its life. That was true while one process owned the file and
+    false the moment the gate topology shipped: `pirx-gate` is long-lived and
+    holds `<gate-dir>/ledger.jsonl` open across a whole session, while
+    `pirx gate-approve` opens *the same default path* for each queue walk.
+    Records written by the approver landed between records the pump had
+    already chained past, so the next pump append reused a sequence number
+    and chained a superseded head - and `pirx verify` refused a ledger
+    produced by the manual's own documented procedure (review finding F59).
+
+    The fix is the dullest one that is correct, in the shape `spendstore.py`
+    already uses: the kernel arbitrates. Every append takes an exclusive
+    `flock` on the file, re-reads the real tail inside the lock if the file
+    grew since this instance last looked, chains from what is actually on
+    disk, and releases. The cached head survives only as an optimisation
+    guarded by a length check, so the common case stays O(1) and the
+    contended case stays correct.
+    """
 
     def __init__(self, path: Path) -> None:
         self.path = path
         self._seq, self._head = self._scan_tail()
+        self._size = self.path.stat().st_size if self.path.exists() else 0
 
     def _scan_tail(self) -> tuple[int, str]:
         if not self.path.exists():
@@ -106,21 +135,42 @@ class Ledger:
             return 0, GENESIS_HASH
         return int(last["seq"]) + 1, _digest(_canonical(last))
 
+    def _refresh_if_grown(self, handle: IO[bytes]) -> None:
+        """Re-read the tail when another writer has extended the file.
+
+        The length check is an *append* detector, deliberately, and not an
+        integrity check: an in-place edit that preserves the byte count is
+        invisible here and is `verify_chain`'s job, not the writer's. A
+        writer that tried to police the file it is appending to would be a
+        second verifier with a weaker view than the real one.
+        """
+        size = os.fstat(handle.fileno()).st_size
+        if size == self._size:
+            return
+        self._seq, self._head = self._scan_tail()
+        self._size = size
+
     def append(self, event: str, **payload: Any) -> LedgerRecord:
-        record = LedgerRecord(
-            seq=self._seq,
-            ts=datetime.now(UTC).isoformat(),
-            prev_hash=self._head,
-            event=event,
-            payload=payload,
-        )
-        line = _canonical(record.as_dict())
         with self.path.open("ab") as handle:
-            handle.write(line + b"\n")
-            handle.flush()
-            os.fsync(handle.fileno())
-        self._seq += 1
-        self._head = _digest(line)
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            try:
+                self._refresh_if_grown(handle)
+                record = LedgerRecord(
+                    seq=self._seq,
+                    ts=datetime.now(UTC).isoformat(),
+                    prev_hash=self._head,
+                    event=event,
+                    payload=payload,
+                )
+                line = _canonical(record.as_dict())
+                handle.write(line + b"\n")
+                handle.flush()
+                os.fsync(handle.fileno())
+                self._seq += 1
+                self._head = _digest(line)
+                self._size = os.fstat(handle.fileno()).st_size
+            finally:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
         return record
 
 
