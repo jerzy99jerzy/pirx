@@ -1,7 +1,7 @@
 # TODO
 
 ```
-Document:  docs/TODO.md, version 2.1
+Document:  docs/TODO.md, version 2.2
 Scope:     small, non-scope-bearing work - documentation, tooling, ergonomics.
            Anything that changes what Pirx does, or accepts a risk, belongs in
            the brief's deferral table (section 9) with an owning version, not
@@ -29,6 +29,19 @@ rather than parked.
     90.4 against a floor of 3.7. That number measures presence at the
     terminal, not attention, so the signal has to be built on the lower tail
     and the shape of the distribution, never on raw elapsed values.
+- [ ] **0.8.0.0, or sooner if a second gate operator appears** Resolve F60:
+  the grant deadline crosses a process boundary on `time.monotonic`, whose
+  reference point CPython documents as valid only inside one process.
+  Either adopt the wall clock `grant.py`'s header has claimed since 0.7.0.0
+  and accept the named clock-rollback exposure, or keep monotonic and state
+  the platform assumption as a supported-platform constraint in PT4. Either
+  is fine; three documents disagreeing was not.
+- [ ] **next docs PR** `docs/MERGE-PROCEDURE.md` grows a topology step: a
+  version that changes how many processes touch a shared artefact re-reads
+  every claim naming the old count. F58, F59, and F60 are all the same shape -
+  a claim true when written, invalidated by a later version, in a file that
+  version had no reason to open. Decide whether this is a checklist line or
+  stays a habit; either is fine, silence is not.
 - [ ] **next tooling PR** `ruff target-version` and `mypy python_version` say
   `py312` while the brief, `requires-python`, and CI all say 3.14. The
   checkers are currently lenient about a language level the project does not
@@ -90,6 +103,13 @@ went. Kept as a short list so a reader does not conclude an item was dropped.
   this document's header excludes.
 
 ## Done recently
+
+- [x] **0.7.3.0** Two writers on one gate ledger (F59). `pirx verify` refused
+  a chain produced by the manual's own two-terminal procedure; appends now
+  take an exclusive `flock` and chain from disk. Killed by mutation.
+- [x] **0.7.3.0** F61: the session grant budget's claimed long-lived approval
+  surface does not exist - `gate-approve` walks the queue once and exits, so
+  the budget bounds a walk. Corrected in `types.py`, no behaviour change.
 
 - [x] **0.7.0.0** `pirx/__init__.py` described 0.4.0.0 as the current
   version, four versions late. Rewritten in the feature commit, not the bump

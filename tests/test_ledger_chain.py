@@ -156,6 +156,45 @@ def test_a_v1_ledger_stays_verifiable(tmp_path) -> None:
     assert "verdict" in first["payload"]
 
 
+def test_two_writers_on_one_file_keep_the_chain_intact(tmp_path: Path) -> None:
+    """F59: the gate topology, as the manual documents it.
+
+    `pirx-gate` is long-lived and holds the gate directory's ledger open for
+    a whole session; `pirx gate-approve` opens the same default path for each
+    queue walk. Before 0.7.3.0 the pump's next append reused a sequence
+    number and chained a superseded head, and `pirx verify` refused a ledger
+    produced by following the manual exactly.
+    """
+    path = tmp_path / "ledger.jsonl"
+
+    pump = ledger.Ledger(path)
+    pump.append("gate.started", pid=1)
+    pump.append("gate.pending", ticket="abc")
+    pump.append("gate.awaiting_approval", ticket="abc")
+
+    approver = ledger.Ledger(path)
+    approver.append("gate.presented", ticket="abc")
+    approver.append("approval.decided", approved=True)
+    approver.append("grant.issued", nonce="deadbeef")
+
+    pump.append("gate.forwarded_granted", ticket="abc")
+
+    verified = ledger.verify_chain(path)
+    assert verified.records == 7
+    seqs = [json.loads(line)["seq"] for line in path.read_text().splitlines()]
+    assert seqs == list(range(7))
+
+
+def test_interleaved_writers_keep_the_chain_intact(tmp_path: Path) -> None:
+    """The same property under alternation rather than two blocks."""
+    path = tmp_path / "ledger.jsonl"
+    first = ledger.Ledger(path)
+    second = ledger.Ledger(path)
+    for i in range(10):
+        (first if i % 2 == 0 else second).append("test.event", index=i)
+    assert ledger.verify_chain(path).records == 10
+
+
 def test_a_chain_with_an_unknown_genesis_is_refused(tmp_path) -> None:
     from pirx.errors import LedgerChainRefusal
     from pirx.ledger import _canonical, verify_chain

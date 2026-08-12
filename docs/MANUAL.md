@@ -5,7 +5,7 @@
 > instruments. This document is the instrument panel.
 
 ```
-Document:  docs/MANUAL.md, version 2.0
+Document:  docs/MANUAL.md, version 2.1
 Audience:  the operator - the person who runs Pirx, answers its prompts, and
            is asked afterwards what happened. Assumes competence, not
            familiarity
@@ -556,6 +556,19 @@ you.
 `pirx.ledger/1` predates the gate and remains verifiable. Retiring a format's
 writer is not retiring its reader.
 
+**Two writers, one file.** In the gate topology the running `pirx-gate` and
+each `pirx gate-approve` walk both append to `<gate-dir>/ledger.jsonl`, which
+is the point: one chain holds the whole story of a call. Appends are ordered
+by an exclusive lock and chained from what is on disk, so interleaving is
+safe. Before 0.7.3.0 it was not, and `pirx verify` refused a chain produced by
+following §4.6 exactly (review F59). If you are running a ledger written by an
+earlier version in this topology, expect a seam at the first approval; it is
+that bug, not tampering.
+
+The lock is local and advisory. Two hosts writing one ledger over a network
+share is not supported and is not made safe by this - a shared ledger is the
+first networked transport (PT14).
+
 ### 8.3 Reading a run
 
 ```bash
@@ -891,6 +904,13 @@ pending proposal already has a grant. It walks the queue once by design.
 
 **An approval "hangs"** - it is waiting for you to type. There is no timeout
 on the prompt, because a prompt that expires would train you to answer fast.
+
+**`refusal.ledger_chain: ledger chain seam` in the gate directory** - if the
+seam sits at the first record `gate-approve` wrote, you are running a
+checkout older than 0.7.3.0, where the pump and the approver both cached a
+head hash and chained past each other (F59). Upgrade; existing ledgers keep
+the seam, because a chain is not rewritable and pretending otherwise would be
+worse than the break.
 
 **Tests fail with `FileNotFoundError` on a key path** - you are running a
 checkout older than 0.7.1.0. The suite has stripped Pirx's environment since.

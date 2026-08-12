@@ -5,10 +5,10 @@
 not per session.**
 
 [![gate](https://github.com/jerzy99jerzy/pirx/actions/workflows/gate.yml/badge.svg)](https://github.com/jerzy99jerzy/pirx/actions/workflows/gate.yml)
-[![version](https://img.shields.io/badge/version-0.7.2.2-7aa2f7)](https://github.com/jerzy99jerzy/pirx/releases)
+[![version](https://img.shields.io/badge/version-0.7.3.0-7aa2f7)](https://github.com/jerzy99jerzy/pirx/releases)
 [![python](https://img.shields.io/badge/python-3.14%2B-7aa2f7)](https://www.python.org/downloads/)
 [![runtime deps](https://img.shields.io/badge/runtime%20deps-0-3ddc84)](pyproject.toml)
-[![tests](https://img.shields.io/badge/tests-208-3ddc84)](tests/)
+[![tests](https://img.shields.io/badge/tests-210-3ddc84)](tests/)
 [![hostile attacks](https://img.shields.io/badge/hostile%20attacks-50-3ddc84)](tests/harness/CATALOGUE.md)
 [![threat rows](https://img.shields.io/badge/threat%20rows-PT1--PT20-9ccfd8)](docs/THREAT-MODEL.md)
 [![capabilities registered](https://img.shields.io/badge/capabilities%20registered-1-ffb86c)](pirx/registry.py)
@@ -68,7 +68,7 @@ itself.
 | Approval is measurably attentive | 0.5.0.0 | A grant needs `AttentionEvidence`: a hash-selected field transcribed from the rendered bytes, an answer above a length-derived floor, a session budget. Verified at the surface and again at issuance. Demonstrates the approver operated on those bytes - never that they understood them. |
 | Evidence is a type, not a field | 0.6.0.0 | Why an action is warranted arrives as a `Justification` from a source adapter, so a second kind of evidence is an addition rather than a rewrite. The verdict path renders the same bytes it always did, held as a golden preimage. |
 
-**You are here: 0.7.2.2.** The `Since` column is the version in which a
+**You are here: 0.7.3.0.** The `Since` column is the version in which a
 property became enforced, not the version that announced it; the marker is
 pinned to `STATUS.json` by the docs audit, so it cannot drift past a bump.
 
@@ -462,6 +462,7 @@ dispositioned as fixed, accepted with reasons, or deferred.
 | 0.7.0.0 | The gate: `tools/call` interception, adapter #2, HMAC grants with a durable spend store, `pirx.proposal/2` and `pirx.ledger/2`, PT16-PT20. **Shipped.** |
 | 0.7.1.0 | `pirx-gate` as a process: the stdio pump, plus the first user manual. **Shipped.** |
 | 0.7.2.0 | The full operator manual (`docs/MANUAL.md` v2.0) and `tools/manual_audit.py`, a fifth CI check that fails when the manual's facts drift from the code. **Shipped.** |
+| 0.7.3.0 | The ledger the gate topology can verify: two writers on one file, ordered by an exclusive lock and chained from disk rather than from a cached head (F59). **Shipped.** |
 | 0.8.0.0 | `pirx verify` report with the fatigue signal; attestation export (EU AI Act art. 14 / ISO 42001 language) |
 | 0.9.0.0 | Streamable HTTP transport for the gate, and the detached payload signature its own threat row makes due at that point |
 | 1.0.0.0 | Defined by condition, not by content: brief section 6.1 |
