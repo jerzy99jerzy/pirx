@@ -6,4 +6,4 @@ processes write one gate ledger, so appends are ordered by the kernel and
 chained from what is on disk rather than from a head cached at construction.
 """
 
-__version__ = "0.7.2.2"
+__version__ = "0.7.3.0"
