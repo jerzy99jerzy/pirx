@@ -1,8 +1,11 @@
 # Contract: `cve-digest.verdict/1`
 
 ```
-Document:  docs/CONTRACT.md, version 1.0 (ships with 0.1.0.0)
-Source:    PIRX-PROJECT-BRIEF.md v1.2, section 3
+Document:  docs/CONTRACT.md, version 1.1 (0.7.4.0; 1.0 shipped with 0.1.0.0)
+Source:    cve-digest's published schema, docs/schema/cve-digest.verdict-1.json,
+           read at 786efcd (0.7.18.0), and a payload its emitter produced.
+           Version 1.0 was written from PIRX-PROJECT-BRIEF.md v1.2's prose,
+           which is how it disagreed with the producer for seven weeks (F62)
 Owner:     Pirx owns THIS document and the compatibility matrix below, as
            the consumer (FAMILY.md 3.4). Rappaport owns the schema itself
            and keeps a plain-prose consumers note pointing here.
@@ -24,12 +27,13 @@ Owner:     Pirx owns THIS document and the compatibility matrix below, as
 | `cve_id` | `CVE-\d{4}-\d{4,}` |
 | `priority` | `P1` / `P2` / `P3` |
 | `in_kev` | boolean |
-| `epss` | number in [0.0, 1.0] |
-| `cvss` | number in [0.0, 10.0], or `null` iff `cvss_pending` is true |
+| `epss` | finite number in [0.0, 1.0] |
+| `epss_pending` | optional boolean, absent before cve-digest 0.7.18.0 and then read as false; true requires `epss` to be 0.0, and renders `epss: pending` rather than a number (F63) |
+| `cvss` | finite number in [0.0, 10.0], or `null` iff `cvss_pending` is true |
 | `cvss_pending` | boolean; true forbids a `cvss` value |
 | `estate_state` | `present` / `absent` / `unknown` |
-| `vex_status` | `affected` / `not_affected` / `fixed` / `under_investigation` |
-| `score` | number in [0.0, 100.0] |
+| `vex_status` | `none` / `affected` / `not_affected` / `fixed` / `under_investigation`; `none` means no statement exists and is the producer's value for most CVEs |
+| `score` | finite number, at least 0.0, no maximum: KEV items start at 100.0 and rise, so the producer's schema declares only a minimum |
 | `triage_note` | string; truncated at parse time to the prose bound; becomes `UntrustedProse` |
 | `recommended_action` | string; same handling |
 | `nvd_url` | string beginning `https://nvd.nist.gov/` |
@@ -47,6 +51,16 @@ Owner:     Pirx owns THIS document and the compatibility matrix below, as
 3. **Shape is validated, origin is not.** Every downstream control is written
    as though the payload could have been authored by an adversary who read
    the schema (PT14, accepted with a named trigger).
+4. **Keys this table does not list are ignored, and never rendered.** The
+   producer adds optional fields under `verdict/1` (`tickets`,
+   `epss_percentile`) and relies on consumers skipping them; a test pins that
+   tolerance so it cannot be lost by accident. Ignoring a field is not
+   reading it: nothing here trusts or displays one.
+5. **The contract is tested against the producer's output, not a description
+   of it.** `tests/fixtures/verdict-1.cve-digest-0.7.18.0.json` was emitted by
+   cve-digest's own `build_verdicts` and carried into this tree by hand. When
+   the producer changes the payload, the fixture is refreshed the same way -
+   never fetched (FAMILY section 1).
 
 ## The justification abstraction (0.6.0.0)
 
@@ -80,6 +94,7 @@ Two consequences worth stating rather than discovering:
 |---|---|---|
 | 0.1.0.0 | `cve-digest.verdict/1` | sole schema; any other id refused |
 | 0.6.0.0 | `cve-digest.verdict/1` | unchanged as a wire contract; it becomes adapter #1 of the justification abstraction, which is an internal shape, not a schema change |
+| 0.7.4.0 | `cve-digest.verdict/1` | **first version that accepts what the producer emits.** 0.1.0.0 through 0.7.3.1 refused any payload carrying a CVE without a VEX statement or a KEV item scored above 100.0 - in practice, every real run (F62). Adds `epss_pending`. Tested against cve-digest 0.7.18.0 output |
 
 A breaking change on the producer side means `cve-digest.verdict/2`; Pirx
 then lists both here for the overlap window and retires `/1` explicitly. The

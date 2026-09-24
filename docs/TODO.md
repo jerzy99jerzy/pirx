@@ -1,7 +1,7 @@
 # TODO
 
 ```
-Document:  docs/TODO.md, version 2.3
+Document:  docs/TODO.md, version 2.4
 Scope:     small, non-scope-bearing work - documentation, tooling, ergonomics.
            Anything that changes what Pirx does, or accepts a risk, belongs in
            the brief's deferral table (section 9) with an owning version, not
@@ -36,27 +36,12 @@ rather than parked.
   and accept the named clock-rollback exposure, or keep monotonic and state
   the platform assumption as a supported-platform constraint in PT4. Either
   is fine; three documents disagreeing was not.
-- [ ] **next PR** F62: the consumer refuses payloads the producer actually
-  emits. `vex_status: "none"` - cve-digest's default for every CVE without an
-  operator VEX statement, since its 0.7.0 - is missing from `VEX_STATUSES`,
-  and `score` is capped at 100.0 while the published schema has no maximum
-  because KEV items start at 100.0. Measured 2026-09-24 with a payload built
-  by the producer's own `build_verdicts` at 0.7.18.0: refused whole, for
-  either reason alone. The field table was written from brief v1.2's prose and
-  `examples/verdict-sample.json` by hand, so no test ever saw emitter output.
-  A defect against a shipped claim, not scope: owned here rather than in the
-  brief's section 9 because it restores what `CONTRACT.md` already says Pirx
-  accepts. Carries a producer-emitted fixture, carried by hand, never fetched.
-- [ ] **next PR** F63: cve-digest 0.7.18.0 added `epss_pending` and
-  `epss_percentile` to `verdict/1` under the same id. Pirx ignores unknown
-  keys, but no test says so, so the tolerance the producer now relies on is
-  an accident. Worse, `epss: 0.00000` for a pending item reaches the approver
-  as a measurement. Decide in the same PR: render `epss: pending` for pending
-  items only (existing action hashes unchanged, the `cvss: pending` shape), or
-  refuse. The producer-side half - adding properties to an object published
-  with `additionalProperties: false` breaks any consumer validating an earlier
-  copy, which is the schema's own stated test for breaking - travels as
-  PX-0003, a `finding`.
+- [ ] **next crossing to cve-digest** Carry PX-0003 (a `finding`): adding
+  properties to a `verdict/1` object published with `additionalProperties:
+  false` breaks any consumer validating against an earlier copy, which is the
+  schema's own stated test for breaking. Pirx is unaffected by construction;
+  the question belongs to the producer. Travels with the PX-0001 mirror that
+  is already written and waiting outside the tree.
 - [~] **exchange entry PX-0001** Pirx side done, second pass 2026-09-24:
   items 2, 4, 5, and 6 resolved. Items 1 and 3 still need cve-digest's answer,
   and the mirror never landed - cve-digest has no `docs/exchange/` at 0.7.18.0.
@@ -92,6 +77,15 @@ went. Kept as a short list so a reader does not conclude an item was dropped.
   this document's header excludes.
 
 ## Done recently
+
+- [x] **0.7.4.0** F62: the consumer accepts what the producer emits -
+  `vex_status: "none"`, KEV scores above 100.0 - tested against a payload
+  cve-digest's own emitter produced, carried by hand. Non-finite numbers are
+  refused explicitly now that `score` has no ceiling.
+- [x] **0.7.4.0** F63: `epss_pending` read, validated, and rendered as
+  `pending`; the model prompt gets `null`, as it does for a pending CVSS.
+  Unknown-key tolerance pinned by a test. Evidence bytes for a published
+  score unchanged, held as golden bytes. Nine mutants, nine killed.
 
 - [x] **0.7.3.1** Three "either is fine, silence is not" decisions, taken:
   FAMILY.md's canonical home recorded as cve-digest, where that repository

@@ -100,7 +100,7 @@ def verdict_prompt(verdict: Verdict) -> str:
             "cve_id": verdict.cve_id,
             "priority": verdict.priority,
             "in_kev": verdict.in_kev,
-            "epss": verdict.epss,
+            "epss": None if verdict.epss_pending else verdict.epss,
             "cvss": verdict.cvss,
             "estate_state": verdict.estate_state,
             "vex_status": verdict.vex_status,

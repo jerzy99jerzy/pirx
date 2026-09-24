@@ -6,7 +6,7 @@ Project brief and first-sprint specification. Self-contained: executable in a
 fresh session with no context beyond this file.
 
 ```
-Brief version:  1.9   (changelog in section 11)
+Brief version:  1.10  (changelog in section 11)
 Repository:     github.com/jerzy99jerzy/pirx
 Consumes:       cve-digest.verdict/1
 Produced by:    github.com/jerzy99jerzy/cve-digest (display codename Rappaport)
@@ -177,7 +177,10 @@ The sole interface. Rappaport emits it; Pirx consumes it. Envelope:
 
 Per verdict: `cve_id`, `priority` (P1/P2/P3), `in_kev`, `epss`, `cvss`,
 `cvss_pending`, `estate_state`, `vex_status`, `score`, `triage_note`,
-`recommended_action`, `nvd_url`.
+`recommended_action`, `nvd_url`, and from cve-digest 0.7.18.0 the optional
+`epss_pending`. Accepted values are owned by `docs/CONTRACT.md`, which since
+0.7.4.0 is written from the producer's published schema and tested against
+its emitted output rather than from this list.
 
 Three consumption rules that follow from the thesis:
 
@@ -319,6 +322,7 @@ Numbered `PT` to avoid collision with Rappaport's `T` series.
 | **0.7.1.0** | `pirx-gate` becomes a process: the stdio pump (framing, bounded frames, a downstream child, stdout that carries protocol only), harness A44-A47, and `docs/MANUAL.md` - the first operator-facing document the project has had. |
 | 0.7.2.0 | `docs/MANUAL.md` v2.0, the full operator manual, and `tools/manual_audit.py` - a fifth required CI check that fails when the manual's stated facts drift from the code. Shipped without a row in this table until brief v1.7, which is the drift the audit tools do not cover: they check pins and markers, not whether a shipped version was planned. |
 | 0.7.3.0 | The ledger the gate topology can verify. 0.7.0.0 split approval from execution into two processes and left `ledger.py` caching a head hash at construction, so the long-lived pump chained past every record `gate-approve` wrote and `pirx verify` refused a ledger produced by following the manual exactly (F59). Appends now take an exclusive lock and chain from disk. Carries two corrections the finding turned up: PT4's single-process claim (F60, open) and the session budget's claimed long-lived surface (F61). |
+| 0.7.4.0 | The verdict consumer accepts what the producer emits. Every version before it refused any payload carrying a CVE without a VEX statement (`vex_status: "none"`) or a KEV item scored above 100.0, which is every real run: the field table was written from this brief's prose and never tested against emitter output (F62). Adds cve-digest 0.7.18.0's `epss_pending`, rendered as `pending` rather than as a zero the approver would read as a measurement (F63), and a producer-emitted fixture carried by hand. Evidence bytes for a published score are unchanged, held as golden bytes. |
 | 0.8.0.0 | `pirx verify` report including the fatigue signal derived from attention events (T8's new owner); attestation export mapping ledger evidence to EU AI Act art. 14 / ISO 42001 demonstrable-oversight language. |
 | 0.9.0.0 | Streamable HTTP transport for the gate, which is stdio-only today. Carries two things the transport forces rather than invites: the stdlib-only constraint, amended in this brief with reasons if the standard library cannot carry it honestly rather than worked around in code; and **PT14's trigger, which this version fires** - a payload crossing a network makes the detached signature a control row instead of an accepted risk. Re-homed from `docs/TODO.md` in brief v1.7, where it was scope living in a file whose own header excludes scope. |
 
@@ -591,6 +595,16 @@ the level of this brief:
 ---
 
 ## 11. Changelog
+
+**v1.10** - the contract, checked against the producer instead of against
+itself.
+
+- **0.7.4.0 gets a row**, planned in the version it ships, as check 8 of the
+  docs audit now requires.
+- **Section 3 stops being the source of the field table.** It was, and it was
+  wrong in two places for seven weeks, because a list of field names in prose
+  says nothing about accepted values and nobody compared either with the
+  producer's schema. `CONTRACT.md` now owns the values and names its source.
 
 **v1.9** - three decisions that were each "either is fine", taken.
 

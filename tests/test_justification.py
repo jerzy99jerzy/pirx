@@ -61,6 +61,24 @@ GOLDEN = (
 #: statement a test can make rather than a claim in a changelog.
 RETIRED_V1_HEAD = b"pirx.proposal/1\n"
 
+#: Verdict evidence for the default fixture, captured from 0.7.3.1 before
+#: 0.7.4.0 changed how a pending EPSS renders. For a published score these
+#: bytes must not move: the evidence digest is inside the action hash, so a
+#: change here voids every verdict grant and needs a new render schema id.
+GOLDEN_VERDICT_EVIDENCE = (
+    b"schema: cve-digest.verdict/1\n"
+    b"cve_id: CVE-2026-1001\n"
+    b"priority: P1\n"
+    b"in_kev: true\n"
+    b"epss: 0.87421\n"
+    b"cvss: 9.8\n"
+    b"cvss_pending: false\n"
+    b"estate_state: present\n"
+    b"vex_status: affected\n"
+    b"score: 91.50000\n"
+    b"nvd_url: https://nvd.nist.gov/vuln/detail/CVE-2026-1001\n"
+)
+
 
 def sample() -> Proposal:
     return Proposal(
@@ -144,6 +162,10 @@ def test_evidence_digest_is_deterministic_and_field_sensitive() -> None:
     assert first.digest == hashlib.sha256(
         verdict_evidence(parsed_verdict())
     ).hexdigest()
+
+
+def test_verdict_evidence_for_a_published_score_has_not_moved() -> None:
+    assert verdict_evidence(parsed_verdict()) == GOLDEN_VERDICT_EVIDENCE
 
 
 def test_evidence_excludes_prose() -> None:

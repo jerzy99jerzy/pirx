@@ -15,6 +15,16 @@ Does NOT:
     transport), not an oversight.
   - coerce. An unknown schema id is refused, not upgraded; an out-of-range
     score is refused, not clamped.
+  - bound ``score`` above. The producer's schema declares only a minimum,
+    because KEV items start at 100.0 and rise from there; a ceiling here was
+    a contract the producer never signed, and it refused every payload that
+    carried a KEV item (F62). Non-finite numbers are refused everywhere,
+    since JSON parsing admits ``NaN`` and ``Infinity`` and an unbounded range
+    would otherwise let them through.
+  - reject keys it does not know. A field the producer adds under
+    ``verdict/1`` (``tickets``, ``epss_percentile``) is ignored and never
+    reaches a rendered byte. That tolerance is tested, because the producer's
+    additive changes rely on it (F63); it is not a promise to read them.
   - trust the producer's own de-duplication. A ``cve_id`` present in both
     ``verdicts`` and ``review_lane`` survives only in the review lane, and
     the collision is recorded (PT11).
@@ -23,6 +33,7 @@ Does NOT:
 from __future__ import annotations
 
 import json
+import math
 import re
 from dataclasses import dataclass
 from typing import Any
@@ -40,8 +51,11 @@ CVE_PATTERN = re.compile(r"^CVE-\d{4}-\d{4,}$")
 
 PRIORITIES = frozenset({"P1", "P2", "P3"})
 ESTATE_STATES = frozenset({"present", "absent", "unknown"})
+#: ``none`` is the producer's value for "no VEX statement exists", which is
+#: most CVEs in most runs. Omitted until 0.7.4.0, so every realistic payload
+#: was refused (F62).
 VEX_STATUSES = frozenset(
-    {"affected", "not_affected", "fixed", "under_investigation"}
+    {"none", "affected", "not_affected", "fixed", "under_investigation"}
 )
 
 
@@ -51,6 +65,7 @@ class Verdict:
     priority: str
     in_kev: bool
     epss: float
+    epss_pending: bool
     cvss: float | None
     cvss_pending: bool
     estate_state: str
@@ -93,6 +108,8 @@ def _as_number(value: Any, field: str, cve: str, low: float, high: float) -> flo
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise BoundsRefusal(f"{field} is not a number", cve_id=cve)
     number = float(value)
+    if not math.isfinite(number):
+        raise BoundsRefusal(f"{field} is not finite", cve_id=cve, value=str(number))
     if not low <= number <= high:
         raise BoundsRefusal(
             f"{field} out of range", cve_id=cve, value=str(number),
@@ -144,7 +161,18 @@ def _verdict(raw: Any, truncated: set[str]) -> Verdict:
     vex = _as_enum(item.get("vex_status"), VEX_STATUSES, "vex_status", cve_id)
 
     epss = _as_number(item.get("epss"), "epss", cve_id, 0.0, 1.0)
-    score = _as_number(item.get("score"), "score", cve_id, 0.0, 100.0)
+    score = _as_number(item.get("score"), "score", cve_id, 0.0, math.inf)
+
+    # Optional: absent from payloads produced before cve-digest 0.7.18.0,
+    # which is read as "a published score". When true, the 0.0 in `epss` is
+    # the producer's placeholder for arithmetic, not a measurement, and it
+    # must never reach an approver looking like one (F63).
+    epss_pending = _as_bool(item.get("epss_pending", False), "epss_pending", cve_id)
+    if epss_pending:
+        _require(
+            epss == 0.0, BoundsRefusal,
+            "epss nonzero while epss_pending is true", cve_id=cve_id,
+        )
 
     cvss_pending = _as_bool(item.get("cvss_pending"), "cvss_pending", cve_id)
     cvss_raw = item.get("cvss")
@@ -170,6 +198,7 @@ def _verdict(raw: Any, truncated: set[str]) -> Verdict:
         priority=priority,
         in_kev=in_kev,
         epss=epss,
+        epss_pending=epss_pending,
         cvss=cvss,
         cvss_pending=cvss_pending,
         estate_state=estate,

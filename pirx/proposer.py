@@ -120,7 +120,7 @@ def propose(
                 "cve_id": verdict.cve_id,
                 "priority": verdict.priority,
                 "in_kev": "true" if verdict.in_kev else "false",
-                "epss": f"{verdict.epss:.5f}",
+                "epss": "pending" if verdict.epss_pending else f"{verdict.epss:.5f}",
                 "cvss": "pending" if verdict.cvss is None else f"{verdict.cvss:.1f}",
                 "estate_state": verdict.estate_state,
                 "vex_status": verdict.vex_status,
