@@ -4,7 +4,8 @@
 > not trust himself; the thesis is the same discipline in code.
 
 ```
-Document:  docs/THESIS.md, version 1.0 (ships with 0.1.0.0)
+Document:  docs/THESIS.md, version 1.1 (1.0 with 0.1.0.0; 1.1 corrects
+           the grant clock, 0.7.5.0)
 Expands:   PIRX-PROJECT-BRIEF.md v1.2, section 1
 ```
 
@@ -34,9 +35,9 @@ of it. Concretely, in this codebase:
 2. **A grant authorises one action.** Its scope is the SHA-256 of the
    canonically rendered proposal - verb, target, parameters, justifying
    verdict. Changing one byte of what was approved invalidates it.
-3. **Grants expire and are single-use.** Expiry runs on the monotonic clock
-   and is checked at spend, not at issue; the nonce is burned before the
-   caller can act.
+3. **Grants expire and are single-use.** Expiry runs on the wall clock and
+   is checked at spend, not at issue, on both sides of the window; the nonce
+   is burned before the caller can act.
 4. **What was approved is what was shown.** One render function produces the
    bytes; the same bytes are the hash preimage; the approval surface writes
    them to the terminal verbatim inside a per-presentation random frame, and

@@ -5,12 +5,12 @@
 not per session.**
 
 [![gate](https://github.com/jerzy99jerzy/pirx/actions/workflows/gate.yml/badge.svg)](https://github.com/jerzy99jerzy/pirx/actions/workflows/gate.yml)
-[![version](https://img.shields.io/badge/version-0.7.4.0-7aa2f7)](https://github.com/jerzy99jerzy/pirx/releases)
+[![version](https://img.shields.io/badge/version-0.7.5.0-7aa2f7)](https://github.com/jerzy99jerzy/pirx/releases)
 [![python](https://img.shields.io/badge/python-3.14%2B-7aa2f7)](https://www.python.org/downloads/)
 [![runtime deps](https://img.shields.io/badge/runtime%20deps-0-3ddc84)](pyproject.toml)
-[![tests](https://img.shields.io/badge/tests-226-3ddc84)](tests/)
-[![hostile attacks](https://img.shields.io/badge/hostile%20attacks-50-3ddc84)](tests/harness/CATALOGUE.md)
-[![threat rows](https://img.shields.io/badge/threat%20rows-PT1--PT20-9ccfd8)](docs/THREAT-MODEL.md)
+[![tests](https://img.shields.io/badge/tests-233-3ddc84)](tests/)
+[![hostile attacks](https://img.shields.io/badge/hostile%20attacks-51-3ddc84)](tests/harness/CATALOGUE.md)
+[![threat rows](https://img.shields.io/badge/threat%20rows-PT1--PT21-9ccfd8)](docs/THREAT-MODEL.md)
 [![capabilities registered](https://img.shields.io/badge/capabilities%20registered-1-ffb86c)](pirx/registry.py)
 [![gated tools](https://img.shields.io/badge/gated%20tools-0-ffb86c)](pirx/mcp/gate.py)
 [![license](https://img.shields.io/badge/license-Apache--2.0-7d8590)](LICENSE)
@@ -61,14 +61,14 @@ itself.
 |---|---|---|
 | Zero authority by default | 0.1.0.0 | Every write takes a `SpentGrant`, whose only constructor is the spend function. "Execute without spending" is rejected by the type checker. |
 | One grant, one action | 0.1.0.0 | Scope is the SHA-256 of the canonically rendered proposal: verb, target, parameters, and the evidence that justifies it. One byte differs, the grant is void. |
-| Single-use and short-lived | 0.1.0.0 | The nonce is burned before the caller can act; expiry runs on a monotonic clock and is checked at spend, not at issue. |
+| Single-use and short-lived | 0.1.0.0 | The nonce is burned before the caller can act; expiry is checked at spend, not at issue, on the wall clock since 0.7.5.0 (monotonic before, which was sound only while one process issued and spent). A spend clock reading earlier than issuance is refused, so one backward clock step extends a grant by less than one TTL; repeated steps are PT21's accepted residual. |
 | What was approved is what was shown | 0.1.0.0 | One render function produces the bytes; those bytes are the hash preimage; the terminal prints them verbatim inside a random-boundary frame. A test compares captured stdout against the preimage byte-for-byte. |
 | Everything is an event | 0.1.0.0 | A hash-chained ledger records proposals, decisions, grants, spends, refusals, attempts, and results. |
 | A grant verifies outside the process that issued it | 0.7.0.0 | HMAC over the canonical scope, and a durable spend store where a burnt nonce is a file created with `O_EXCL`. The two ship together or not at all: either alone is unsound. |
 | Approval is measurably attentive | 0.5.0.0 | A grant needs `AttentionEvidence`: a hash-selected field transcribed from the rendered bytes, an answer above a length-derived floor, a session budget. Verified at the surface and again at issuance. Demonstrates the approver operated on those bytes - never that they understood them. |
 | Evidence is a type, not a field | 0.6.0.0 | Why an action is warranted arrives as a `Justification` from a source adapter, so a second kind of evidence is an addition rather than a rewrite. The verdict path renders the same bytes it always did, held as a golden preimage. |
 
-**You are here: 0.7.4.0.** The `Since` column is the version in which a
+**You are here: 0.7.5.0.** The `Since` column is the version in which a
 property became enforced, not the version that announced it; the marker is
 pinned to `STATUS.json` by the docs audit, so it cannot drift past a bump.
 
@@ -438,7 +438,7 @@ dispositioned as fixed, accepted with reasons, or deferred.
 | **`docs/MANUAL.md`** | **Start here to use it**: install, both entry points, what to do at an approval prompt, reading the ledger, every refusal and what it means |
 | `docs/PIRX-PROJECT-BRIEF.md` | Thesis, threat model, version plan, settled decisions and the deferral table |
 | `docs/THESIS.md` | Why approval is a capability grant, not a checkbox |
-| `docs/THREAT-MODEL.md` | PT1-PT20, each with its control or its named acceptance, and the test that measures it |
+| `docs/THREAT-MODEL.md` | PT1-PT21, each with its control or its named acceptance, and the test that measures it |
 | `docs/CONTRACT.md` | The `cve-digest.verdict/1` contract and the consumer-owned compatibility matrix |
 | `docs/ARCHITECTURE.md` | Implementation-level assumptions, every shipped sprint |
 | `docs/MERGE-PROCEDURE.md` | Branch protection, rebase, tags |
@@ -466,6 +466,7 @@ dispositioned as fixed, accepted with reasons, or deferred.
 | 0.7.2.0 | The full operator manual (`docs/MANUAL.md` v2.0) and `tools/manual_audit.py`, a fifth CI check that fails when the manual's facts drift from the code. **Shipped.** |
 | 0.7.3.0 | The ledger the gate topology can verify: two writers on one file, ordered by an exclusive lock and chained from disk rather than from a cached head (F59). **Shipped.** |
 | 0.7.4.0 | The verdict consumer accepts what cve-digest actually emits (`vex_status: "none"`, KEV scores above 100.0, `epss_pending`), tested against a payload its emitter produced (F62, F63). **Shipped.** |
+| 0.7.5.0 | Grant expiry on the wall clock the design chose at 0.7.0.0 and the wiring never used: a spend clock reading before issuance is refused, one production constructor builds every issuer, and the backwards-clock residual is PT21 (F60). **Shipped.** |
 | 0.8.0.0 | `pirx verify` report with the fatigue signal; attestation export (EU AI Act art. 14 / ISO 42001 language) |
 | 0.9.0.0 | Streamable HTTP transport for the gate, and the detached payload signature its own threat row makes due at that point |
 | 1.0.0.0 | Defined by condition, not by content: brief section 6.1 |

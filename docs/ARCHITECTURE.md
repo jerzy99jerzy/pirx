@@ -6,15 +6,19 @@
 > word.
 
 ```
-Document:   docs/ARCHITECTURE.md, version 2.2
-Refers to:  PIRX-PROJECT-BRIEF.md v1.5 (thesis, threat model PT1-PT20,
-            version plan), FAMILY.md v1.0 (practices P1-P13),
-            PIRX-GATE-DESIGN.md v1.1 (0.5.0.0-0.8.0.0 direction)
-Covers:     every shipped sprint: 0.1.0.0 (trust loop), 0.2.0.0 (harness),
-            0.3.0.0 (first capability), 0.4.0.0 (model entry), 0.5.0.0
-            (attentive approval), 0.6.0.0 (justification abstraction),
-            0.7.0.0 (the gate, and three format changes), 0.7.1.0 (the
-            stdio pump, and the manual)
+Document:   docs/ARCHITECTURE.md, version 2.3
+Refers to:  PIRX-PROJECT-BRIEF.md v1.11 (thesis, threat model PT1-PT14
+            there, PT15-PT21 in THREAT-MODEL.md, version plan), FAMILY.md
+            v1.2 (practices P1-P13), PIRX-GATE-DESIGN.md v1.1 (0.5.0.0-0.8.0.0
+            direction)
+Covers:     sprints 0.1.0.0 (trust loop), 0.2.0.0 (harness), 0.3.0.0 (first
+            capability), 0.4.0.0 (model entry), 0.5.0.0 (attentive
+            approval), 0.6.0.0 (justification abstraction), 0.7.0.0 (the
+            gate, and three format changes), 0.7.1.0 (the stdio pump, and
+            the manual), each in its own section; and 0.7.5.0's clock in
+            sections 1.1, 1.3 and A22. Not yet folded in: 0.7.3.0's
+            two-writer ledger (see its review), and 0.7.2.0 and 0.7.4.0,
+            which changed no structure described here
 Authority:  implementation level only. Where this document appears to
             conflict with the brief or a threat-model row, the brief wins
             and the conflict is a finding (FAMILY.md section 4). Settled
@@ -66,7 +70,8 @@ protects nothing.
 
 Two consequences follow, and both are costs rather than features:
 
-- **Expiry moved from the monotonic clock to the wall clock.** A monotonic
+- **Expiry moved from the monotonic clock to the wall clock** - decided
+  here, implemented only at 0.7.5.0 (F60; section 1.3). A monotonic
   deadline is meaningless in a process that did not issue it. The exposure is
   named: an operator who moves the system clock backwards extends a grant's
   life. That is smaller than a deadline no reader can evaluate, and it is a
@@ -131,15 +136,29 @@ Four zones, and the boundaries between them are the architecture:
 
 Two clocks, two jobs, never mixed:
 
-- **Monotonic clock** (`time.monotonic()`): all security decisions, meaning
-  grant expiry (PT4). Deadlines are stored as monotonic instants, which is
-  possible only because grants never cross a process boundary in these
-  sprints - a monotonic value is meaningless outside its process, and that
-  constraint conveniently *enforces* the single-process assumption: a grant
-  cannot even be serialised meaningfully.
-- **Wall clock** (`datetime.now(UTC)`): ledger timestamps, for audit
-  readability and SIEM correlation. Explicitly not a security input; a skewed
-  wall clock makes the audit trail harder to read, never a grant valid.
+- **Wall clock** (`time.time()`): grant issue time and deadline (PT4), since
+  0.7.5.0. A grant is a file that a second process evaluates, and only the
+  wall clock gives that process an instant it can compare by contract.
+  `spend` checks it on both sides - not after the deadline, not before
+  issuance - so a clock stepped backwards across a live grant is refused,
+  and a single smaller step extends a grant by less than one TTL (PT21 names
+  the residual). Production issuers come only from
+  `GrantIssuer.on_wall_clock` (A22). Ledger timestamps
+  (`datetime.now(UTC)`) are also wall-clock, for audit readability and SIEM
+  correlation; they are not a security input.
+- **Monotonic clock** (`time.monotonic()`): durations measured inside one
+  process - the attention interval against the reading floor (PT15) and the
+  proposal age the runner shows at approval. A backwards wall-clock step must not be
+  able to shorten a reading floor, and neither value ever leaves its process.
+
+History, kept because the error was instructive: 0.1.0.0 through 0.6.0.0 put
+deadlines on the monotonic clock, correctly, because one process issued and
+spent. 0.7.0.0 split the processes and decided on the wall clock (1.1), and
+every wiring site passed `time.monotonic` from 0.7.0.0 through 0.7.4.0. The
+comparison held on Linux and macOS by implementation detail; the clock also
+restarted at boot and, by the platforms' documentation, paused during sleep,
+so a grant could outlive its TTL by the previous uptime or by the length of
+a sleep (F60; the reboot case is reproduced by A48 with an injected clock).
 
 ---
 
@@ -657,3 +676,4 @@ a version bump, not a discussion in a pull request.
 | A19 | The grant issuer is injected into `Session` and `Gate`, never constructed by them | An issuer holds a key and a durable store; a component that built its own would be deciding where authority is recorded. Injection puts that choice at the wiring site, where a reviewer sees it |
 | A20 | The gate forwards the **received bytes**, never a re-serialisation | A re-serialisation is a second rendering path, and two renderings of one message are the shown-versus-executed divergence P10 exists to refuse. It also means the gate cannot accidentally normalise a body it gated on |
 | A21 | `gate_approve` parses the challenged fields back out of the canonical bytes and re-checks the hash | The approval surface must not rebuild a proposal from parts: a second construction path could show a human one artefact while the hash covers another. Reading the fields from the bytes themselves makes "what was challenged" and "what was shown" the same object by construction, and the recomputed hash catches a pending file edited in between |
+| A22 | A22 supersedes A3 from 0.7.5.0: grant instants are wall-clock; the clock stays an injected callable as the test seam, and production issuers are built only by `GrantIssuer.on_wall_clock` | A3's reason held only while a grant never left its process. Since the gate, a deadline is read by a second process, and a monotonic instant restarts at boot and pauses in sleep. The clock is chosen once, in `grant.py`, because F60 was three wiring sites each choosing one while the decision lived in prose. A19 still holds: the wiring site builds the issuer and chooses its key and store; the clock is no longer a choice it has. A scrape fails if a module outside `grant.py` calls the constructor directly - a tripwire, not a proof |

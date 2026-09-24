@@ -6,6 +6,7 @@ check a developer meets after pushing, which is the wrong end of the loop.
 
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -146,9 +147,14 @@ def test_docs_audit_detects_a_stale_badge(tmp_path: Path) -> None:
         ),
     )
     readme = work / "README.md"
-    readme.write_text(
-        readme.read_text().replace("hostile%20attacks-50-", "hostile%20attacks-99-")
+    # Perturb whatever count the badge carries: a literal count here went
+    # stale the first time an attack was added (0.7.5.0), and a replace that
+    # matches nothing leaves the audit clean for the wrong reason.
+    stale, hits = re.subn(
+        r"hostile%20attacks-\d+-", "hostile%20attacks-99-", readme.read_text()
     )
+    assert hits == 1
+    readme.write_text(stale)
     result = subprocess.run(
         [sys.executable, str(work / "tools" / "docs_audit.py")],
         capture_output=True, text=True, cwd=work,

@@ -26,6 +26,7 @@ from pirx.errors import (
     ChallengeFailedRefusal,
     EnumRefusal,
     ExpiredGrantRefusal,
+    GrantNotYetValidRefusal,
     HashMismatchRefusal,
     LedgerChainRefusal,
     ReadingFloorRefusal,
@@ -185,6 +186,23 @@ def test_a06_deadline_pass(tmp_path: Path, clock: FakeClock, book: Path) -> None
     with pytest.raises(ExpiredGrantRefusal):
         sess.spend(grant, rendered.action_hash, rendered.proposal.target)
     assert find(book, "refusal.expired_grant")["payload"]["overdue_seconds"] > 0
+    assert "grant.spent" not in names(book)
+
+
+def test_a48_clock_rollback_past_issuance(
+    tmp_path: Path, clock: FakeClock, book: Path
+) -> None:
+    """F60, PT4/PT21. The spend-time clock reads an hour before issuance: a
+    reboot under the monotonic clock 0.7.4.0 ran on, a backwards step under
+    the wall clock it runs on now. Refused, recorded, nothing spent."""
+    sess = session(tmp_path, clock, PRODUCTION_REGISTRY)
+    rendered = first_rendered(sess, bundle())
+    grant = sess.issue(approval(rendered), rendered)
+    clock.now = grant.issued_at - 3600.0
+    with pytest.raises(GrantNotYetValidRefusal):
+        sess.spend(grant, rendered.action_hash, rendered.proposal.target)
+    record = find(book, "refusal.grant_not_yet_valid")
+    assert record["payload"]["early_seconds"] == pytest.approx(3600.0)
     assert "grant.spent" not in names(book)
 
 
@@ -666,7 +684,7 @@ def test_every_catalogue_row_has_a_test() -> None:
         line for line in catalogue.splitlines()
         if line.startswith("| A") and "`test_" in line
     ]
-    assert len(rows) == 50, f"expected 49 catalogue rows, found {len(rows)}"
+    assert len(rows) == 51, f"expected 51 catalogue rows, found {len(rows)}"
 
     defined: set[str] = set()
     for module_path in here.glob("test_*.py"):

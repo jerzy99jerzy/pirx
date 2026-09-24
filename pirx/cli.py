@@ -55,7 +55,7 @@ from .spendstore import SpendStore
 from .types import GRANT_KEY_ENV, MIN_GRANT_KEY_BYTES
 
 
-def issuer_for(ledger_path: Path, clock: Callable[[], float]) -> GrantIssuer:
+def issuer_for(ledger_path: Path) -> GrantIssuer:
     """Build the issuer for a single-process run.
 
     Two topologies, and which one is in force is decided by whether a key
@@ -78,7 +78,7 @@ def issuer_for(ledger_path: Path, clock: Callable[[], float]) -> GrantIssuer:
         if configured
         else secrets.token_bytes(MIN_GRANT_KEY_BYTES)
     )
-    return GrantIssuer(clock=clock, key=key, store=store)
+    return GrantIssuer.on_wall_clock(key=key, store=store)
 
 
 def run(
@@ -93,7 +93,7 @@ def run(
 ) -> int:
     session = Session(
         Ledger(ledger_path), clock=clock, registry=registry,
-        issuer=issuer_for(ledger_path, clock),
+        issuer=issuer_for(ledger_path),
         adapter=adapter, model=model,
     )
     session.started(str(payload_path))
@@ -262,8 +262,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "authority nothing can check\n"
             )
             return 78
-        issuer = GrantIssuer(
-            clock=time.monotonic,
+        issuer = GrantIssuer.on_wall_clock(
             key=load_key(Path(configured)),
             store=SpendStore(gate_dir / "spent"),
         )

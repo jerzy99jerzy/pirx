@@ -1,7 +1,7 @@
 # TODO
 
 ```
-Document:  docs/TODO.md, version 2.4
+Document:  docs/TODO.md, version 2.5
 Scope:     small, non-scope-bearing work - documentation, tooling, ergonomics.
            Anything that changes what Pirx does, or accepts a risk, belongs in
            the brief's deferral table (section 9) with an owning version, not
@@ -29,13 +29,11 @@ rather than parked.
     90.4 against a floor of 3.7. That number measures presence at the
     terminal, not attention, so the signal has to be built on the lower tail
     and the shape of the distribution, never on raw elapsed values.
-- [ ] **0.8.0.0, or sooner if a second gate operator appears** Resolve F60:
-  the grant deadline crosses a process boundary on `time.monotonic`, whose
-  reference point CPython documents as valid only inside one process.
-  Either adopt the wall clock `grant.py`'s header has claimed since 0.7.0.0
-  and accept the named clock-rollback exposure, or keep monotonic and state
-  the platform assumption as a supported-platform constraint in PT4. Either
-  is fine; three documents disagreeing was not.
+- [ ] **next docs PR** `tests/harness/CATALOGUE.md` has no rows for A44-A47c,
+  the ten pump attacks in `test_pump.py`, so "one row per attack" and the
+  README's attack badge both undercount. Found reading the catalogue for A48;
+  not fixed in 0.7.5.0 because it moves a public count for a reason unrelated
+  to the clock.
 - [ ] **next crossing to cve-digest** Carry PX-0003 (a `finding`): adding
   properties to a `verdict/1` object published with `additionalProperties:
   false` breaks any consumer validating against an earlier copy, which is the
@@ -62,6 +60,9 @@ the commitment: it is what makes these deferrals rather than intentions.
   for the Jira adapter against a recorded response corpus (F15).
 - [ ] **first observed false negative from reconciliation, or first adapter
   with a smaller page size** Paginate `find_comment` (F30).
+- [ ] **the next change to `Session`'s constructor** Drop the stored `clock`:
+  nothing reads it, and since 0.7.5.0 the issuer owns the only clock a grant
+  depends on, so a reader who sees it may assume otherwise.
 - [ ] **first operator complaint about directory size** A prune strategy for
   the pending queue and the spend store. Neither expires anything on its own
   today, and that is deliberate: an automatic prune of a spend record is a
@@ -77,6 +78,11 @@ went. Kept as a short list so a reader does not conclude an item was dropped.
   this document's header excludes.
 
 ## Done recently
+
+- [x] **0.7.5.0** F60: grant deadlines on the wall clock through one
+  production constructor, a spend clock reading before issuance refused
+  (`refusal.grant_not_yet_valid`), PT4 resolved and PT21 added, harness A48.
+  Seven mutants, seven killed.
 
 - [x] **0.7.4.0** F62: the consumer accepts what the producer emits -
   `vex_status: "none"`, KEV scores above 100.0 - tested against a payload

@@ -6,7 +6,7 @@ Project brief and first-sprint specification. Self-contained: executable in a
 fresh session with no context beyond this file.
 
 ```
-Brief version:  1.10  (changelog in section 11)
+Brief version:  1.11  (changelog in section 11)
 Repository:     github.com/jerzy99jerzy/pirx
 Consumes:       cve-digest.verdict/1
 Produced by:    github.com/jerzy99jerzy/cve-digest (display codename Rappaport)
@@ -220,7 +220,7 @@ flowchart TB
     PP --> RN["Renderer<br/>canonical bytes"]
     RN --> AP["Approval CLI<br/>shows the bytes, nothing else"]
     AP --> H(["Human"])
-    H -->|approves| G["Grant<br/>scope, action hash,<br/>monotonic expiry, single-use"]
+    H -->|approves| G["Grant<br/>scope, action hash,<br/>wall-clock expiry, single-use"]
     G --> CAP["Capability<br/>refuses without a valid grant<br/>(registry empty in 0.1.0.0)"]
     CAP --> T["Target system<br/>ticket / change record"]
     CAP --> L[("Ledger<br/>hash-chained JSONL")]
@@ -294,7 +294,7 @@ Numbered `PT` to avoid collision with Rappaport's `T` series.
 | PT1 | Malformed or hostile-shaped verdict payload | Schema and bounds validation on arrival; enumerated values only; no prose parsed for intent. Shape only: see PT14 for origin |
 | PT2 | Prompt injection in `triage_note` steering the proposer | Proposer selects from a registry, never names an action; parameters come from deterministic fields, never from prose. In 0.1.0.0 there is no model in the loop at all |
 | PT3 | Approval reuse - a valid grant spent on a second action | Grant bound to action hash, single-use, marked spent before execution |
-| PT4 | Stale approval - authority granted earlier in the run | Short expiry measured on a **monotonic** clock, checked at spend time not issue time. Single process, so there is no clock to skew or roll back |
+| PT4 | Stale approval - authority granted earlier in the run | Short expiry on the **wall clock**, checked at spend time not issue time, bounded on both sides: after the deadline is refused, and so is a spend clock reading earlier than issuance. Monotonic until 0.7.5.0, which was sound only while one process issued and spent (F60); the backwards-clock residual is PT21 in `THREAT-MODEL.md` |
 | PT5 | Substitution - approved for target A, executed on target B | Target id inside the hashed scope; verified at spend |
 | PT6 | Agent-authored approval prompt (agent controls what the human sees) | Human is shown the canonical rendered bytes; the same bytes are hashed. From 0.4.0.0, prose is additionally delimited and labelled as untrusted in the render |
 | PT7 | Capability reachable without a grant (a new code path forgets) | Grant is a required argument. A build-failing scrape asserts that network and filesystem-write imports appear only in an allowlisted module set, and that no function in those modules lacks a grant parameter. This is a **regression tripwire for the honest mistake**, not a proof against a determined author: indirection defeats any static check, and the document does not claim otherwise |
@@ -323,6 +323,7 @@ Numbered `PT` to avoid collision with Rappaport's `T` series.
 | 0.7.2.0 | `docs/MANUAL.md` v2.0, the full operator manual, and `tools/manual_audit.py` - a fifth required CI check that fails when the manual's stated facts drift from the code. Shipped without a row in this table until brief v1.7, which is the drift the audit tools do not cover: they check pins and markers, not whether a shipped version was planned. |
 | 0.7.3.0 | The ledger the gate topology can verify. 0.7.0.0 split approval from execution into two processes and left `ledger.py` caching a head hash at construction, so the long-lived pump chained past every record `gate-approve` wrote and `pirx verify` refused a ledger produced by following the manual exactly (F59). Appends now take an exclusive lock and chain from disk. Carries two corrections the finding turned up: PT4's single-process claim (F60, open) and the session budget's claimed long-lived surface (F61). |
 | 0.7.4.0 | The verdict consumer accepts what the producer emits. Every version before it refused any payload carrying a CVE without a VEX statement (`vex_status: "none"`) or a KEV item scored above 100.0, which is every real run: the field table was written from this brief's prose and never tested against emitter output (F62). Adds cve-digest 0.7.18.0's `epss_pending`, rendered as `pending` rather than as a zero the approver would read as a measurement (F63), and a producer-emitted fixture carried by hand. Evidence bytes for a published score are unchanged, held as golden bytes. |
+| 0.7.5.0 | Grant expiry on the clock 0.7.0.0 chose for it. Every wiring site had kept `time.monotonic`, whose reference point CPython leaves undefined across processes, which restarts at boot, and which the platforms document as stopping while the host sleeps; a grant could outlive its TTL by the previous uptime or by the length of a sleep (F60). Deadlines move to the wall clock through one production constructor, a spend clock reading before issuance is refused, and the residual a backwards clock leaves is PT21, accepted with a trigger. Harness A48. |
 | 0.8.0.0 | `pirx verify` report including the fatigue signal derived from attention events (T8's new owner); attestation export mapping ledger evidence to EU AI Act art. 14 / ISO 42001 demonstrable-oversight language. |
 | 0.9.0.0 | Streamable HTTP transport for the gate, which is stdio-only today. Carries two things the transport forces rather than invites: the stdlib-only constraint, amended in this brief with reasons if the standard library cannot carry it honestly rather than worked around in code; and **PT14's trigger, which this version fires** - a payload crossing a network makes the detached signature a control row instead of an accepted risk. Re-homed from `docs/TODO.md` in brief v1.7, where it was scope living in a file whose own header excludes scope. |
 
@@ -595,6 +596,25 @@ the level of this brief:
 ---
 
 ## 11. Changelog
+
+**v1.11** - the clock the grant was said to run on.
+
+- **0.7.5.0 gets a row**, planned in the version it ships.
+- **Section 5's PT4 row stops describing a topology that ended at 0.7.0.0.**
+  It said "single process, so there is no clock to skew or roll back" from
+  0.7.0.0, which made two processes read one grant, through 0.7.4.0; the
+  0.7.3.0 correction reached `THREAT-MODEL.md` and not this table. The row
+  now states the wall clock, the two-sided check at spend, and where the
+  residual lives.
+- **PT21 is added in `THREAT-MODEL.md` and not here**, following PT15-PT20:
+  this table keeps the rows the 0.1.0.0 sprint was specified against, and
+  the threat model is authoritative for everything after.
+- Recorded honestly: the decision was made at 0.7.0.0 (v1.5), announced in
+  `grant.py`'s header and the manual, and never implemented. Nothing in the
+  gate could see it, because every test injected a clock and no test asked
+  which clock the wiring passed. The fix therefore carries a behavioural test
+  of the production constructor and a scrape, named as a tripwire, rather
+  than only a unit test of the check.
 
 **v1.10** - the contract, checked against the producer instead of against
 itself.

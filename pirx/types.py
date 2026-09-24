@@ -70,7 +70,9 @@ MAX_PROSE_CHARS = 2_000
 #: order, so overflow can only ever drop the tail of the ranking.
 MAX_PROPOSALS_PER_RUN = 10
 
-#: Grant lifetime, measured on the monotonic clock (PT4).
+#: Grant lifetime, measured on the wall clock and checked at spend (PT4).
+#: Monotonic until 0.7.5.0, which F60 found to be the wrong clock for a
+#: deadline another process evaluates.
 GRANT_TTL_SECONDS = 300.0
 
 #: Reading floor (PT15): minimum seconds between presenting the canonical

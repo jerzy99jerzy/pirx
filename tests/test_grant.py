@@ -9,6 +9,7 @@ from pirx.approve import challenge_field, reading_floor_seconds
 from pirx.errors import (
     ChallengeFailedRefusal,
     ExpiredGrantRefusal,
+    GrantNotYetValidRefusal,
     HashMismatchRefusal,
     ReadingFloorRefusal,
     SessionBudgetRefusal,
@@ -110,6 +111,122 @@ def test_expired_grant_is_refused_at_spend_time_though_valid_at_issue(tmp_path) 
     with pytest.raises(ExpiredGrantRefusal) as caught:
         issuer.spend(grant, r.action_hash, r.proposal.target)
     assert caught.value.details["overdue_seconds"] > 0
+
+
+def test_a_grant_is_spendable_at_exactly_its_deadline(tmp_path) -> None:
+    """The deadline is inclusive. Pinned so that a `>` to `>=` edit in the
+    expiry check is a failing test, not a silent one-tick shortening."""
+    clock, r = FakeClock(), rendered()
+    issuer = grant_issuer(clock, tmp_path)
+    grant = issuer.issue(approval(r), r)
+    clock.advance(GRANT_TTL_SECONDS)
+    assert clock.now == grant.deadline
+    assert isinstance(
+        issuer.spend(grant, r.action_hash, r.proposal.target), SpentGrant
+    )
+
+
+def test_a_spend_clock_before_issuance_is_refused(tmp_path) -> None:
+    """F60. The exposure 0.7.4.0 shipped, reproduced with the injected clock:
+    issued late in one clock epoch, spent early in the next. On the
+    monotonic clock that is a reboot between issue and spend, and the grant
+    outlived its TTL by the previous uptime. On the wall clock it is the
+    clock moving backwards past issuance. Either way the grant's validity
+    window has no defined start, so it is refused rather than honoured."""
+    clock, r = FakeClock(start=1_000_000.0), rendered()
+    issuer = grant_issuer(clock, tmp_path)
+    grant = issuer.issue(approval(r), r)
+    clock.now = 50.0
+    with pytest.raises(GrantNotYetValidRefusal) as caught:
+        issuer.spend(grant, r.action_hash, r.proposal.target)
+    assert caught.value.details["early_seconds"] > 0
+    # Refused before the store is touched: the grant is not burnt, so the
+    # refusal cost nothing but the spend. A later spend inside the window
+    # is still the grant's single use.
+    clock.now = grant.issued_at
+    assert isinstance(
+        issuer.spend(grant, r.action_hash, r.proposal.target), SpentGrant
+    )
+
+
+def test_a_rollback_smaller_than_the_elapsed_time_is_the_named_residual(
+    tmp_path,
+) -> None:
+    """PT21, executable in the manner of A15: the residual is asserted, not
+    implied. A backward step no larger than the time already elapsed since
+    issue keeps the spend clock at or after issuance, so the not-before check
+    cannot see it and the grant lives longer by the size of the step. One
+    step therefore buys strictly less than one extra TTL. If PT21 ever gains
+    a control, this test flips, and deleting it instead needs a reason."""
+    clock, r = FakeClock(), rendered()
+    issuer = grant_issuer(clock, tmp_path)
+    grant = issuer.issue(approval(r), r)
+    real_elapsed = 0.0
+    clock.advance(200.0)
+    real_elapsed += 200.0
+    clock.now -= 150.0  # the step: no real time passes
+    clock.advance(250.0)
+    real_elapsed += 250.0
+    assert clock.now == grant.deadline
+    assert isinstance(
+        issuer.spend(grant, r.action_hash, r.proposal.target), SpentGrant
+    )
+    assert real_elapsed == GRANT_TTL_SECONDS + 150.0
+    assert real_elapsed < 2 * GRANT_TTL_SECONDS
+
+
+def test_the_production_issuer_writes_wall_clock_deadlines(tmp_path) -> None:
+    """F60's other half is wiring, which no injected-clock test can see: every
+    site built its issuer with `time.monotonic`. A grant from the production
+    constructor must carry an epoch timestamp another process can evaluate.
+    The tolerance is wide on purpose; monotonic readings are uptime-scale and
+    miss it by decades, not seconds."""
+    import time
+
+    from pirx.spendstore import SpendStore
+
+    r = rendered()
+    issuer = GrantIssuer.on_wall_clock(
+        key=b"k" * 32, store=SpendStore(tmp_path / "spent")
+    )
+    grant = issuer.issue(approval(r), r)
+    assert abs(grant.issued_at - time.time()) < 60.0
+    assert grant.deadline - grant.issued_at == pytest.approx(GRANT_TTL_SECONDS)
+
+
+def test_a_grant_from_the_monotonic_era_is_refused_as_expired(tmp_path) -> None:
+    """The upgrade path MANUAL section 16 describes, measured rather than
+    asserted: a grant written by 0.7.4.0 or earlier carries uptime-scale
+    instants under a MAC that still verifies with the same key. The
+    wall-clock issuer refuses it as expired, the safe direction, and the
+    overdue figure is what an operator will see in the ledger."""
+    from pirx.spendstore import SpendStore
+
+    r = rendered()
+    old = grant_issuer(FakeClock(start=500_000.0), tmp_path)
+    grant = old.issue(approval(r), r)
+    new = GrantIssuer.on_wall_clock(
+        key=b"k" * 32, store=SpendStore(tmp_path / "spent")
+    )
+    with pytest.raises(ExpiredGrantRefusal) as caught:
+        new.spend(grant, r.action_hash, r.proposal.target)
+    assert caught.value.details["overdue_seconds"] > 1e9
+
+
+def test_no_module_builds_an_issuer_around_the_wall_clock_constructor() -> None:
+    """Regression tripwire, not a proof (P7): the defect F60 closes was three
+    wiring sites each choosing a clock. Outside `grant.py`, the package may
+    obtain an issuer only through `GrantIssuer.on_wall_clock`. Indirection
+    defeats a scrape; the honest mistake of passing a clock again does not."""
+    from pathlib import Path
+
+    package = Path(__file__).resolve().parent.parent / "pirx"
+    offenders = [
+        str(path.relative_to(package))
+        for path in package.rglob("*.py")
+        if path.name != "grant.py" and "GrantIssuer(" in path.read_text()
+    ]
+    assert offenders == []
 
 
 def test_grant_for_target_a_is_refused_against_target_b(tmp_path) -> None:
