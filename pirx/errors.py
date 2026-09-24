@@ -76,6 +76,17 @@ class ExpiredGrantRefusal(Refusal):
     event = "refusal.expired_grant"
 
 
+class GrantNotYetValidRefusal(Refusal):
+    """The spend-time clock reads earlier than the grant's issue time (F60).
+
+    On one host with one wall clock, that is the clock having moved backwards
+    between issue and spend. The event names the measurement, not a cause:
+    an NTP step and a deliberate clock change look the same from here.
+    """
+
+    event = "refusal.grant_not_yet_valid"
+
+
 class SpentGrantRefusal(Refusal):
     event = "refusal.spent_grant"
 

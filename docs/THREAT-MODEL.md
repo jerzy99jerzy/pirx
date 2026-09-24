@@ -47,31 +47,40 @@ replay-over-expiry ordering test.
 
 ## PT4 - Stale approval
 
-**Control.** Short expiry measured on a **monotonic** clock, checked at spend
-time.
+**Control.** Short expiry measured on the **wall clock**, checked at spend
+time, bounded on both sides: `spend` refuses a clock reading after the
+deadline (`refusal.expired_grant`) and a clock reading before `issued_at`
+(`refusal.grant_not_yet_valid`). Both instants are inside the MAC scope, so
+neither can be edited to widen the window.
 
-**Correction, 0.7.3.0 (F60).** This row read "Single process, so there is no
-clock to skew or roll back; a serialised grant is meaningless outside its
-process by construction." That stopped being true at 0.7.0.0, when the gate
-split issuance (`gate-approve`) from spending (`pirx-gate`) into two
-processes. The wording survived two versions. What the code actually does is
-compare a monotonic deadline written by one process against a monotonic
-reading taken in another, and CPython documents the reference point of
-`time.monotonic` as undefined outside a single process - so the comparison is
-sound on Linux and macOS by implementation detail rather than by contract.
-`grant.py`'s own header, meanwhile, announces that expiry moved to the wall
-clock, which the code never did. **The decision is open and owned** (see
-`docs/TODO.md`): adopt the wall clock the header already describes and accept
-the named clock-rollback exposure, or keep monotonic and state the
-platform assumption as a supported-platform constraint. Either is defensible;
-the previous state - three documents disagreeing with each other and with the
-code - was not.
+**Resolution, 0.7.5.0 (F60).** From 0.7.0.0 through 0.7.4.0 every wiring site
+injected `time.monotonic`, while 0.7.0.0 had decided on the wall clock and
+three documents disagreed about which one ran. Kept as history because the
+monotonic clock was wrong in three measurable or documented ways, not one:
+its reference point is undefined across processes by CPython's contract; it
+restarts at boot, so a grant file written before a reboot carried a deadline
+in the old epoch and stayed spendable for up to the previous uptime
+(reproduced by A48 with an injected clock); and by the platforms' own
+documentation it does not advance while a macOS or Linux host sleeps, so a
+grant could outlive its TTL by the length of the sleep (documented, not
+measured on a host). The wall clock removes all three. Its cost is PT21.
+Every production issuer is now built by one constructor,
+`GrantIssuer.on_wall_clock`, and a scrape in the grant tests fails if a
+module builds one around it - a regression tripwire, not a proof.
+
+Durations stay monotonic: the attention interval and the proposal age are
+differences inside one process, and a backwards wall-clock step must not be
+able to shorten a reading floor (PT15).
 
 Residual, named:
 the human's absence *before* approval is not covered by expiry - the approval
 surface prints the proposal's age as a labelled decision aid.
 **Lives in** `grant.py`, `approve.py`. **Measured by**
 `test_grant.py::test_expired_grant_is_refused_at_spend_time_though_valid_at_issue`,
+`test_grant.py::test_a_grant_is_spendable_at_exactly_its_deadline`,
+`test_grant.py::test_a_spend_clock_before_issuance_is_refused`,
+`test_grant.py::test_the_production_issuer_writes_wall_clock_deadlines`,
+harness A06 and A48,
 `test_approve.py::test_age_is_shown_and_labelled_as_not_an_integrity_control`.
 
 ## PT5 - Substitution: approved for target A, executed on target B
@@ -306,3 +315,36 @@ gated?" from a header while forwarding a body naming a different tool has
 re-created the shown-versus-executed divergence at the transport layer.
 Headers may be used for routing and metrics only.
 **Lives in** `mcp/protocol.py`. **Measured by** harness A39, A39b.
+
+## PT21 - Clock rollback on the gate host extends an unspent grant
+
+**Bounded, and accepted beyond the bound.** Since 0.7.5.0 a grant's deadline
+is on the wall clock (PT4), and a wall clock can be stepped backwards.
+**Control:** `spend` refuses any reading earlier than `issued_at`. A single
+backward step is therefore either larger than the time the grant has
+already lived - and refused - or no larger, in which case the grant lives
+longer by the size of the step. One step buys strictly less than one extra
+TTL, so a grant's real lifetime stays under twice `GRANT_TTL_SECONDS`.
+**Accepted:** repeated steps, each small enough to pass the check, are not
+bounded. Two kinds of principal can step the clock repeatedly. An
+administrator or root can, and can also read the grant key file (mode 600 in
+the operator's home), which mints a fresh grant with any deadline outright,
+so for them a clock step adds nothing. The time daemon can too, and it holds
+the privilege to set the clock without the privilege to read the key; so
+can anyone who feeds it a false time over unauthenticated NTP. For that path
+the acceptance rests on what the step can and cannot change: it keeps an
+already approved action spendable for longer, and it cannot change what was
+approved - the bytes, the target, and single use are untouched. Time-source
+integrity (authenticated NTP) is the operator's control, named here rather
+than assumed. A forward step is fail-safe: grants expire early and the human
+approves again.
+**Trigger:** the first topology in which issuer and spender read different
+clocks (a second host, which the networked transport of 0.9.0.0 makes
+possible), or the first registered action or gated tool whose effect depends
+on when it runs rather than only on what it does. Either turns a bounded
+residual into one nobody has measured, and this row then needs a control
+rather than an acceptance.
+**Lives in** `grant.py`. **Measured by** harness A48 (the control) and
+`test_grant.py::test_a_rollback_smaller_than_the_elapsed_time_is_the_named_residual`
+(the residual, executable in the manner of A15: if this row gains a control,
+that test flips).

@@ -1,8 +1,8 @@
 # Hostile-agent attack catalogue
 
 ```
-Document:  tests/harness/CATALOGUE.md, version 1.3 (A31-A35 with 0.5.0.0,
-           A36 with 0.6.0.0, A37-A43 with 0.7.0.0)
+Document:  tests/harness/CATALOGUE.md, version 1.4 (A31-A35 with 0.5.0.0,
+           A36 with 0.6.0.0, A37-A43 with 0.7.0.0, A48 with 0.7.5.0)
 Source:    docs/ARCHITECTURE.md section 4.2
 Runs in:   CI on every push, same gate as unit tests - not nightly, because
            a control verified occasionally is a control that regresses
@@ -27,7 +27,7 @@ future owner, not silent scope (P12).
 | A03 | Enum smuggling: `priority: P0`, unenumerated `vex_status` | PT1 | `refusal.enum` | `test_a03_enum_smuggling` |
 | A04 | Prose as parameter: `recommended_action` carrying a plausible action string | PT2 | no param equals prose | `test_a04_prose_never_reaches_a_parameter` |
 | A05 | Replay: spend one grant twice | PT3 | `refusal.spent_grant` | `test_a05_replay` |
-| A06 | Deadline pass: advance the injected monotonic clock past expiry | PT4 | `refusal.expired_grant` | `test_a06_deadline_pass` |
+| A06 | Deadline pass: advance the injected grant clock past expiry | PT4 | `refusal.expired_grant` | `test_a06_deadline_pass` |
 | A07 | Target swap: grant for A, spend against B | PT5 | `refusal.target_mismatch` | `test_a07_target_swap` |
 | A08 | Byte flip: mutate one byte of the rendered proposal | PT6 | `refusal.hash_mismatch` | `test_a08_byte_flip` |
 | A09 | Frame forgery: prose carrying a closing frame marker | PT6 | framed region intact | `test_a09_frame_forgery` |
@@ -72,6 +72,7 @@ future owner, not silent scope (P12).
 | A42c | Malformed JSON-RPC bodies | PT1 | JSON-RPC error; nothing forwarded | `test_a42c_malformed_bodies_never_reach_the_downstream` |
 | A42d | Drift refusal reachable from the registry | PT16 | `ToolDefinitionDriftRefusal` | `test_a42d_drift_refusal_type_is_reachable_from_the_registry` |
 | A43 | Field-line forgery via intercepted-call arguments | PT2, PT6 | JSON escaping keeps the payload on one line; no forged field | `test_a43_arguments_cannot_forge_a_field_line` |
+| A48 | Clock rollback past issuance: spend clock an hour before `issued_at` | PT4, PT21 | `refusal.grant_not_yet_valid`; nothing spent | `test_a48_clock_rollback_past_issuance` |
 
 ## A37-A42d exist because the gate stands between two machines
 

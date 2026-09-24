@@ -88,7 +88,12 @@ def bundle(
 
 
 class FakeClock:
-    """Injected monotonic clock. The only test seam the design admits."""
+    """Injected clock. The only time seam the design admits.
+
+    One instance may stand in for the monotonic clock that measures
+    durations and for the wall clock that grants run on (0.7.5.0, F60);
+    which one it replaces is decided by where the test injects it.
+    """
 
     def __init__(self, start: float = 1000.0) -> None:
         self.now = start

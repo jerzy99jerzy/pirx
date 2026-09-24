@@ -2,7 +2,8 @@
 
 A grant authorises one action, not a session. It is bound to the hash of the
 rendered proposal, the target, and the justification that warrants it; it
-expires on the wall clock (0.7.0.0: see below); it is single-use.
+expires on the wall clock (decided at 0.7.0.0, true since 0.7.5.0: see
+below); it is single-use.
 
 ``SpentGrant`` is a distinct type whose only constructor is ``spend``. A
 capability's signature takes ``SpentGrant``, so "execute without spending" is
@@ -23,19 +24,22 @@ stateless-verifiable grant with no durable spend record is replayable across
 restarts, and a durable record without a verifiable grant protects nothing
 (P5). Two consequences follow and are stated rather than discovered:
 
-  - **Expiry must move to the wall clock, and has not. UNRESOLVED (F60).**
-    The argument stands: a monotonic deadline is meaningless in another
-    process, and a grant that crosses a process boundary must carry a
-    deadline the reader can evaluate. Every wiring site nonetheless still
-    injects `time.monotonic`, so what ships compares a deadline written by
-    `gate-approve` against a reading taken in `pirx-gate` - sound on Linux
-    and macOS because both anchor the clock at boot, undefined by CPython's
-    own contract. The decision between adopting the wall clock (accepting
-    that an operator who moves the system clock backwards extends a grant's
-    life) and keeping monotonic (stating the platform assumption as a
-    supported-platform constraint) is the owner's, is in `docs/TODO.md`, and
-    is not being made here by editing a docstring to match whichever the code
-    happens to do.
+  - **Expiry runs on the wall clock (resolved at 0.7.5.0, F60).** 0.7.0.0
+    decided it and named the cost; every wiring site kept `time.monotonic`
+    from 0.7.0.0 through 0.7.4.0. A monotonic deadline cannot be evaluated
+    by contract in another process, restarts its epoch at boot (a grant
+    written before a reboot could outlive its TTL by the previous uptime,
+    reproduced by A48), and by the platforms' own documentation does not
+    advance while a macOS or Linux host sleeps (a grant could outlive its
+    TTL by the length of the sleep; documented, not measured here). The
+    wall clock fixes all
+    three and costs one exposure, bounded here rather than discovered:
+    ``spend`` refuses any clock reading earlier than ``issued_at``, so a
+    single backward step can extend a grant only by less than the time it
+    had already lived - strictly under one extra TTL. Repeated steps are
+    not bounded; that residual is accepted with a trigger in PT21.
+    ``GrantIssuer.on_wall_clock`` is the one production constructor, so
+    no wiring site chooses a clock again.
   - **A grant is now a serialisable artefact.** It is therefore also a thing
     an attacker can copy. The MAC makes forgery hard; the spend store makes
     a copy useless; neither makes the file secret, and nothing in the design
@@ -48,9 +52,11 @@ Does NOT:
   - expose a constructor that bypasses an approving decision. ``issue`` takes
     the decision object; there is no other path to a ``Grant``.
   - claim that a serialised grant is meaningless outside its process. It was
-    through 0.6.0.0 and the line survived into 0.7.x saying so; since the
-    gate, a grant is a file two processes read. See the UNRESOLVED clock note
-    above rather than trusting this section for that property.
+    through 0.6.0.0; since the gate, a grant is a file two processes read,
+    and its deadline is on the one clock both can evaluate.
+  - measure durations. The attention interval and the proposal age are
+    in-process differences and stay on the monotonic clock, where a
+    backwards step cannot shorten a reading floor (approve.py).
   - refund on failure. A failed execution consumed real authority; re-issuing
     is a human decision made with the ledger in hand (ARCHITECTURE A12).
 """
@@ -60,6 +66,7 @@ from __future__ import annotations
 import hmac
 import json
 import secrets
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -68,6 +75,7 @@ from .errors import (
     ChallengeFailedRefusal,
     ExpiredGrantRefusal,
     GrantMacRefusal,
+    GrantNotYetValidRefusal,
     HashMismatchRefusal,
     MalformedGrantRefusal,
     ReadingFloorRefusal,
@@ -239,6 +247,16 @@ class GrantIssuer:
         self._ttl = ttl_seconds
         self._issued_count = 0
 
+    @classmethod
+    def on_wall_clock(cls, key: bytes, store: SpendStore) -> GrantIssuer:
+        """The production constructor: deadlines on ``time.time`` (F60).
+
+        The ``clock`` parameter above is the test seam and nothing else. Every
+        wiring site builds its issuer here, and a scrape in the grant tests
+        fails if a module outside this one calls the constructor directly.
+        """
+        return cls(clock=time.time, key=key, store=store)
+
     def _mac(self, scope: bytes) -> str:
         return hmac.new(self._key, scope, "sha256").hexdigest()
 
@@ -301,7 +319,8 @@ class GrantIssuer:
 
         Order is load-bearing and reads top to bottom as the argument it is:
         authenticity first (an unverified grant's other fields mean nothing),
-        then coverage, then target, then time, then the durable burn. The
+        then coverage, then target, then time - not before issuance, not
+        after the deadline, both inclusive - then the durable burn. The
         nonce is spent before the caller can act, so a crash mid-action
         cannot leave reusable authority behind.
 
@@ -333,6 +352,15 @@ class GrantIssuer:
                 granted=grant.target, presented=target,
             )
         now = self._clock()
+        if now < grant.issued_at:
+            # F60, PT21: a window with no defined start has no defined length.
+            # ``issued_at`` is inside the MAC scope, so it cannot be edited
+            # to dodge this check.
+            raise GrantNotYetValidRefusal(
+                "spend clock reads before issuance; the clock moved backwards",
+                nonce=grant.nonce,
+                early_seconds=round(grant.issued_at - now, 3),
+            )
         if now > grant.deadline:
             raise ExpiredGrantRefusal(
                 "grant expired", nonce=grant.nonce,

@@ -37,7 +37,6 @@ import json
 import os
 import subprocess
 import sys
-import time
 from collections.abc import Sequence
 from pathlib import Path
 from typing import BinaryIO
@@ -136,8 +135,7 @@ def build_gate(
     return Gate(
         registry=registry if registry is not None else PRODUCTION_GATED_REGISTRY,
         ledger=Ledger(gate_dir / "ledger.jsonl"),
-        issuer=GrantIssuer(
-            clock=time.monotonic,
+        issuer=GrantIssuer.on_wall_clock(
             key=load_key(Path(configured)),
             store=SpendStore(gate_dir / "spent"),
         ),

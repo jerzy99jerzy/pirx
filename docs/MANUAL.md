@@ -5,7 +5,7 @@
 > instruments. This document is the instrument panel.
 
 ```
-Document:  docs/MANUAL.md, version 2.1
+Document:  docs/MANUAL.md, version 2.2 (2.2: the grant clock, 0.7.5.0)
 Audience:  the operator - the person who runs Pirx, answers its prompts, and
            is asked afterwards what happened. Assumes competence, not
            familiarity
@@ -152,11 +152,16 @@ That requires a shared key, and the gate refuses to start without one.
 
 **Two consequences of the split, stated because they are costs:**
 
-- **Grant expiry runs on the wall clock.** A monotonic deadline is meaningless
-  in a process that did not issue the grant. An operator who moves the system
-  clock backwards extends a grant's life. That is smaller than a deadline no
-  reader can evaluate, and it is a line in the threat model rather than a
-  silence.
+- **Grant expiry runs on the wall clock.** From 0.7.0.0 through 0.7.4.0 this
+  line said so and the code ran on the monotonic clock (F60, fixed in
+  0.7.5.0). A monotonic deadline cannot be evaluated by another process, and
+  it restarts at boot and stops while the host sleeps, each of which let a
+  grant outlive its five minutes. The wall clock can be moved backwards
+  instead, so a spend whose clock reads earlier than the grant's issue time
+  is refused (`refusal.grant_not_yet_valid`): one backward step extends a
+  grant by less than five minutes. Repeated steps are an accepted residual
+  (PT21), and authenticated time sync on the gate host is your control, not
+  Pirx's.
 - **A grant is a file, and therefore copyable.** The MAC makes forgery hard;
   the durable spend store makes a copy useless; nothing makes the file secret,
   and no part of the design assumes it is.
@@ -690,6 +695,7 @@ Each refusal names exactly one cause.
 | `refusal.hash_mismatch` | the bytes changed after approval - most often a tool definition or an argument |
 | `refusal.target_mismatch` | the grant is for a different target |
 | `refusal.expired_grant` | more than five minutes passed between issue and spend |
+| `refusal.grant_not_yet_valid` | the system clock moved backwards past the grant's issue time - a time-sync step or a manual change. Approve again; the grant was not spent |
 | `refusal.spent_grant` | a replay, or a retry after a crash that had already spent it |
 
 ---
@@ -704,6 +710,7 @@ stable name; payload keys are stable within a name.
 | Event | Why |
 |---|---|
 | `refusal.grant_mac` | someone presented a grant this gate did not issue |
+| `refusal.grant_not_yet_valid` | the clock moved backwards across a live grant; find out whether time sync stepped or someone set it |
 | `refusal.tool_definition_drift` | a downstream tool changed under a pinned hash |
 | `refusal.header_mismatch` | a peer's routing headers disagreed with its body |
 | `refusal.ledger_chain` | the audit trail itself failed verification |
@@ -734,7 +741,7 @@ no configuration file, and adding one would be a rejected change.
 |---|---|---|
 | `MAX_PROSE_CHARS` | 2 000 | Producer or model text kept per field; the rest is truncated and recorded |
 | `MAX_PROPOSALS_PER_RUN` | 10 | Proposals a single run will put in front of a human |
-| `GRANT_TTL_SECONDS` | 300.0 | Grant lifetime, from issue to spend |
+| `GRANT_TTL_SECONDS` | 300.0 | Grant lifetime, from issue to spend, on the wall clock |
 | `READING_FLOOR_BASE_SECONDS` | 2.0 | Fixed part of the approval floor |
 | `READING_FLOOR_SECONDS_PER_KIB` | 2.0 | Per-kilobyte part of the approval floor |
 | `MAX_GRANTS_PER_SESSION` | 20 | Grants one issuer produces before refusing |
@@ -822,6 +829,7 @@ continue.
 | `refusal.hash_mismatch` | the grant does not cover these bytes |
 | `refusal.target_mismatch` | the grant is for another target |
 | `refusal.expired_grant` | the deadline passed before the spend |
+| `refusal.grant_not_yet_valid` | the spend clock reads before the grant's issue time |
 | `refusal.spent_grant` | a replay: the nonce is already burnt |
 | `refusal.grant_mac` | not issued by a holder of this key |
 | `refusal.malformed_grant` | the grant file's shape is wrong |
@@ -911,6 +919,11 @@ checkout older than 0.7.3.0, where the pump and the approver both cached a
 head hash and chained past each other (F59). Upgrade; existing ledgers keep
 the seam, because a chain is not rewritable and pretending otherwise would be
 worse than the break.
+
+**`refusal.expired_grant` with an `overdue_seconds` near 1.8 billion, right
+after upgrading** - the grant was issued by 0.7.4.0 or earlier, whose
+deadlines are seconds since boot rather than since 1970. Every such grant is
+refused as expired, which is the safe direction: approve again.
 
 **Tests fail with `FileNotFoundError` on a key path** - you are running a
 checkout older than 0.7.1.0. The suite has stripped Pirx's environment since.
