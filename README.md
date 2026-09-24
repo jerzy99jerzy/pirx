@@ -5,10 +5,10 @@
 not per session.**
 
 [![gate](https://github.com/jerzy99jerzy/pirx/actions/workflows/gate.yml/badge.svg)](https://github.com/jerzy99jerzy/pirx/actions/workflows/gate.yml)
-[![version](https://img.shields.io/badge/version-0.7.3.0-7aa2f7)](https://github.com/jerzy99jerzy/pirx/releases)
+[![version](https://img.shields.io/badge/version-0.7.3.1-7aa2f7)](https://github.com/jerzy99jerzy/pirx/releases)
 [![python](https://img.shields.io/badge/python-3.14%2B-7aa2f7)](https://www.python.org/downloads/)
 [![runtime deps](https://img.shields.io/badge/runtime%20deps-0-3ddc84)](pyproject.toml)
-[![tests](https://img.shields.io/badge/tests-210-3ddc84)](tests/)
+[![tests](https://img.shields.io/badge/tests-211-3ddc84)](tests/)
 [![hostile attacks](https://img.shields.io/badge/hostile%20attacks-50-3ddc84)](tests/harness/CATALOGUE.md)
 [![threat rows](https://img.shields.io/badge/threat%20rows-PT1--PT20-9ccfd8)](docs/THREAT-MODEL.md)
 [![capabilities registered](https://img.shields.io/badge/capabilities%20registered-1-ffb86c)](pirx/registry.py)
@@ -68,7 +68,7 @@ itself.
 | Approval is measurably attentive | 0.5.0.0 | A grant needs `AttentionEvidence`: a hash-selected field transcribed from the rendered bytes, an answer above a length-derived floor, a session budget. Verified at the surface and again at issuance. Demonstrates the approver operated on those bytes - never that they understood them. |
 | Evidence is a type, not a field | 0.6.0.0 | Why an action is warranted arrives as a `Justification` from a source adapter, so a second kind of evidence is an addition rather than a rewrite. The verdict path renders the same bytes it always did, held as a golden preimage. |
 
-**You are here: 0.7.3.0.** The `Since` column is the version in which a
+**You are here: 0.7.3.1.** The `Since` column is the version in which a
 property became enforced, not the version that announced it; the marker is
 pinned to `STATUS.json` by the docs audit, so it cannot drift past a bump.
 
@@ -407,12 +407,14 @@ measured control.
 ## Development
 
 ```bash
-ruff check . && mypy pirx && python -m pytest -q && python tools/docs_audit.py
+ruff check . && mypy pirx && python -m pytest -q
 ```
 
-The docs audit checks that `STATUS.json`'s pins match the versions documents
-declare, that every version README marks shipped has a review file, that the
-attack catalogue and its assertion agree, and that PT numbering has no gaps.
+The suite runs both documentation audits, `tools/docs_audit.py` and
+`tools/manual_audit.py`, through `tests/test_docs_audit.py`, so documentation
+drift fails locally rather than after a push. CI runs them again as a separate
+`docs-audit` job so a failure names itself. What each audit checks is listed
+in its own docstring rather than restated here, where it would drift.
 It runs as a fourth CI job.
 
 Branch protection is active on `main` with `enforce_admins`, so every change
@@ -440,7 +442,7 @@ dispositioned as fixed, accepted with reasons, or deferred.
 | `docs/CONTRACT.md` | The `cve-digest.verdict/1` contract and the consumer-owned compatibility matrix |
 | `docs/ARCHITECTURE.md` | Implementation-level assumptions, every shipped sprint |
 | `docs/MERGE-PROCEDURE.md` | Branch protection, rebase, tags |
-| `docs/FAMILY.md` | Vendored family practices and the human-carried exchange protocol |
+| `docs/FAMILY.md` | Family practices and the human-carried exchange protocol; held here until its canonical home in cve-digest lands |
 | `docs/TODO.md` | Small non-scope work, each row with a named owner |
 | `tools/docs_audit.py` | The documentation consistency check that runs in the gate |
 | `docs/reviews/` | Pre-push reviews, one per version, findings dispositioned |

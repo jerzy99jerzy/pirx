@@ -1,7 +1,7 @@
 # TODO
 
 ```
-Document:  docs/TODO.md, version 2.2
+Document:  docs/TODO.md, version 2.3
 Scope:     small, non-scope-bearing work - documentation, tooling, ergonomics.
            Anything that changes what Pirx does, or accepts a risk, belongs in
            the brief's deferral table (section 9) with an owning version, not
@@ -36,43 +36,32 @@ rather than parked.
   and accept the named clock-rollback exposure, or keep monotonic and state
   the platform assumption as a supported-platform constraint in PT4. Either
   is fine; three documents disagreeing was not.
-- [ ] **next docs PR** `docs/MERGE-PROCEDURE.md` grows a topology step: a
-  version that changes how many processes touch a shared artefact re-reads
-  every claim naming the old count. F58, F59, and F60 are all the same shape -
-  a claim true when written, invalidated by a later version, in a file that
-  version had no reason to open. Decide whether this is a checklist line or
-  stays a habit; either is fine, silence is not.
-- [ ] **next tooling PR** `ruff target-version` and `mypy python_version` say
-  `py312` while the brief, `requires-python`, and CI all say 3.14. The
-  checkers are currently lenient about a language level the project does not
-  run on. Decide whether to raise both or to record the divergence with a
-  reason; either is fine, silence is not.
-- [ ] **next tooling PR** `docs_audit.py` gained no check from brief v1.7's
-  finding: 0.7.2.0 shipped, was reviewed, and appeared in README's plan while
-  the brief's version plan had no row for it. A cross-check - every version
-  README marks shipped has a row in the brief's section 6 table - would have
-  caught it. Decide whether it is worth a sixth invariant or whether this
-  class of drift stays a human read at review time; either is fine, silence
-  is not.
-- [ ] **next docs PR** `docs/MERGE-PROCEDURE.md` v1.0 lists three required
-  status checks. The protection on `main` requires four - `ruff`, `mypy`,
-  `pytest`, `docs-audit` - verified against the API during the 0.6.0.0 push.
-  The document is stale; the setting is correct.
-- [~] **exchange entry PX-0001** carried to cve-digest 2026-08-08. Resolved
-  on the way: all five `[cve-digest: confirm]` provenance lines (four
-  confirmed in code, P11's attribution struck as an over-interpretation), and
-  WORKFLOW.md confirmed to exist upstream at 1.6. **Two decisions now sit with
-  cve-digest**: whether to adopt the `Trigger-owned` TODO subsection, and how
-  to resolve FAMILY.md's canonical home (see below). Awaiting the mirror's
-  disposition.
-- [ ] **PX-0001 item 5, owner's decision** FAMILY.md declared cve-digest its
-  canonical home; no FAMILY.md exists there, and no `docs/exchange/` either.
-  The header no longer asserts it. Resolve by creating the canonical copy
-  upstream (recommended) or by naming Pirx the home - either is fine, the
-  previous state was not.
-- [ ] **PX-0001 item 6, owner's decision** Vendor cve-digest's WORKFLOW.md
-  (confirmed at doc version 1.6) verbatim with the version pinned, or state in
-  brief section 8 that Pirx deliberately does not carry it (F32).
+- [ ] **next PR** F62: the consumer refuses payloads the producer actually
+  emits. `vex_status: "none"` - cve-digest's default for every CVE without an
+  operator VEX statement, since its 0.7.0 - is missing from `VEX_STATUSES`,
+  and `score` is capped at 100.0 while the published schema has no maximum
+  because KEV items start at 100.0. Measured 2026-09-24 with a payload built
+  by the producer's own `build_verdicts` at 0.7.18.0: refused whole, for
+  either reason alone. The field table was written from brief v1.2's prose and
+  `examples/verdict-sample.json` by hand, so no test ever saw emitter output.
+  A defect against a shipped claim, not scope: owned here rather than in the
+  brief's section 9 because it restores what `CONTRACT.md` already says Pirx
+  accepts. Carries a producer-emitted fixture, carried by hand, never fetched.
+- [ ] **next PR** F63: cve-digest 0.7.18.0 added `epss_pending` and
+  `epss_percentile` to `verdict/1` under the same id. Pirx ignores unknown
+  keys, but no test says so, so the tolerance the producer now relies on is
+  an accident. Worse, `epss: 0.00000` for a pending item reaches the approver
+  as a measurement. Decide in the same PR: render `epss: pending` for pending
+  items only (existing action hashes unchanged, the `cvss: pending` shape), or
+  refuse. The producer-side half - adding properties to an object published
+  with `additionalProperties: false` breaks any consumer validating an earlier
+  copy, which is the schema's own stated test for breaking - travels as
+  PX-0003, a `finding`.
+- [~] **exchange entry PX-0001** Pirx side done, second pass 2026-09-24:
+  items 2, 4, 5, and 6 resolved. Items 1 and 3 still need cve-digest's answer,
+  and the mirror never landed - cve-digest has no `docs/exchange/` at 0.7.18.0.
+  Owner of the rest: the landing of cve-digest's `docs/exchange/`, which the
+  FAMILY.md landing after its 0.8.0.0 gate forces (PX-0002).
 - [ ] **first version running the gate on Windows** The Windows identity
   launcher. Research is done and shipped as `docs/IDENTITY-WINDOWS.md`; the
   code is deliberately not written ahead of it, because the research
@@ -103,6 +92,17 @@ went. Kept as a short list so a reader does not conclude an item was dropped.
   this document's header excludes.
 
 ## Done recently
+
+- [x] **0.7.3.1** Three "either is fine, silence is not" decisions, taken:
+  FAMILY.md's canonical home recorded as cve-digest, where that repository
+  had already decided it (FAMILY.md 1.2, PX-0002); WORKFLOW.md deliberately
+  not vendored (brief v1.9 section 8, F32 closed); `ruff target-version` and
+  `mypy python_version` raised to 3.14 to match what the project runs on.
+- [x] **0.7.3.1** `docs/MERGE-PROCEDURE.md` 1.1: four required checks, not
+  three; the topology step is a checklist line, not a habit; command blocks
+  zsh-safe and split per P13.
+- [x] **0.7.3.1** `docs_audit.py` check 8: every version README marks shipped
+  has a row in brief section 6. Replays the 0.7.2.0 drift in a test.
 
 - [x] **0.7.3.0** Two writers on one gate ledger (F59). `pirx verify` refused
   a chain produced by the manual's own two-terminal procedure; appends now

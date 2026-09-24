@@ -4,10 +4,14 @@
 (cve-digest) and Pirx.**
 
 ```
-Document:       FAMILY.md, version 1.1
-Canonical home: UNRESOLVED - see the note below and PX-0001 item 5
-Held by:        pirx, docs/FAMILY.md (currently the only copy in existence)
-Amended via:    the exchange protocol in section 3
+Document:       FAMILY.md, version 1.2
+Canonical home: cve-digest, docs/FAMILY.md - not yet landed. Lands after
+                cve-digest's 0.8.0.0 gate (decided upstream, see below)
+Held by:        pirx, docs/FAMILY.md - the only copy until that landing,
+                and until then the authoritative one
+Amended via:    here until the landing, each change as a convention-amendment
+                exchange entry; in cve-digest afterwards, with this file
+                becoming a pinned vendored copy
 ```
 
 **Correction, 2026-08-08 (PX-0001 item 5).** Version 1.0 of this header
@@ -18,10 +22,14 @@ only copy. The claim was false from the day it was written, in the one
 document whose purpose is to keep two projects honest with each other, and it
 went unnoticed until an exchange entry needed a destination.
 
-The header no longer asserts a home it cannot point to. Resolving it - by
-creating the canonical copy in cve-digest, or by naming Pirx the home - is
-PX-0001 item 5 and belongs to the next crossing, not to a unilateral edit
-here.
+**Resolved, 2026-09-24 (PX-0001 item 5, PX-0002).** The decision had already
+been made on the producer side and never carried back: cve-digest's
+estate-layer brief (`docs/briefs/BRIEF-estate-layer.md`, landed at 0.7.14.4 on
+2026-09-03) names `FAMILY.md` as a deliberate forward reference that lands
+after its 0.8.0.0 gate. The header above records that decision rather than
+making a second one from this side. Until the landing, amendments are made
+here and each travels as a `convention-amendment` entry, so the landing
+carries a known version rather than whatever this file says on the day.
 
 Two repositories, one author, one set of habits that were paid for in
 incidents. This document does two things: it names the practices so they can be
@@ -157,10 +165,9 @@ brief section 9.)*
 
 **P13. Verification and the action it guards never share a pasted block.**
 Command hygiene: the check that something worked is issued separately from the
-thing being checked, so a copy-paste cannot silently skip it. *(Provenance: inherited
-WORKFLOW.md - confirmed to exist in cve-digest at doc version 1.6, and
-deliberately not yet vendored here; the vendor-or-declare decision is PX-0001
-item 6. Paid for in an incident.)*
+thing being checked, so a copy-paste cannot silently skip it. *(Provenance: cve-digest's
+WORKFLOW.md, which Pirx deliberately does not vendor - brief section 8,
+PX-0001 item 6. Paid for in an incident.)*
 
 Amending this list is a convention-amendment exchange entry (section 3), so
 that a practice invented in one repo reaches the other deliberately.
@@ -193,7 +200,7 @@ every crossing without either side reading the other's tree.
 |---|---|---|
 | `finding` | Something learned in one repo that should change the other's deterministic rules, tests, or docs. The Pirx-brief case: "Pirx learned something that should change priority" travels here, never on a wire | either |
 | `contract-proposal` | A proposed change to `cve-digest.verdict/*`. Breaking means a new id per P8; the proposal names the id | consumer -> producer, usually |
-| `convention-amendment` | A change to WORKFLOW.md or to this document, made in the canonical home and then propagated | either |
+| `convention-amendment` | A change to this document, or a process rule one repository's own workflow document adopts from the other's (cve-digest `WORKFLOW.md`, Pirx `docs/MERGE-PROCEDURE.md`). Made in the document's home, never by editing a vendored copy | either |
 | `status` | A snapshot crossing (see 3.4), carried when versions or supported contracts change | either |
 
 ### 3.3 Entry format
@@ -240,13 +247,23 @@ of them within a month.
 
 ### 3.5 Vendoring rule
 
-Documents with a canonical home (WORKFLOW.md, FAMILY.md) are vendored
-verbatim, with the version pinned in the vendored copy's header. The local
-docs audit verifies the pin is internally consistent (header version equals
-the version the inheriting brief declares). Propagating a bump is a
-`convention-amendment` entry and a human act. Editing a vendored copy directly
-is the one way to fork the family by accident, which is why the header says
-where amendments happen.
+This document is the only one shared across the family. Once its canonical
+copy exists, it is vendored verbatim with the version pinned in the vendored
+copy's header, and the local docs audit verifies the pin is internally
+consistent (header version equals the version `STATUS.json` declares).
+Propagating a bump is a `convention-amendment` entry and a human act. Editing
+a vendored copy directly is the one way to fork the family by accident, which
+is why the header says where amendments happen.
+
+Workflow documents are not shared. Each repository keeps its own
+(cve-digest `WORKFLOW.md`, Pirx `docs/MERGE-PROCEDURE.md`), because a vendored
+process document is a second source of truth for the same subject and is stale
+by construction: cve-digest's moved from 1.6 to 1.7 six days after Pirx first
+read it. A rule worth adopting travels as a `convention-amendment` entry and
+is restated in the receiving document's own words. WORKFLOW.md 1.7 already
+ported three rules from a sibling repository's release procedure this way,
+without an entry to trace them; the entry is what makes the next port
+traceable.
 
 ---
 

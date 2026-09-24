@@ -155,3 +155,30 @@ def test_docs_audit_detects_a_stale_badge(tmp_path: Path) -> None:
     )
     assert result.returncode == 1
     assert "attacks badge" in result.stderr
+
+
+def test_docs_audit_detects_a_shipped_version_with_no_plan_row(tmp_path: Path) -> None:
+    """Replays the 0.7.2.0 drift brief v1.7 found by reading: README marks a
+    version shipped that the brief's plan never had a row for. Measured
+    failing, so the check is a tripwire rather than a sentence (F9)."""
+    import shutil
+
+    work = tmp_path / "repo"
+    shutil.copytree(
+        ROOT, work,
+        ignore=shutil.ignore_patterns(
+            ".git", "__pycache__", ".venv", "*.jsonl",
+            ".mypy_cache", ".pytest_cache", ".ruff_cache",
+        ),
+    )
+    brief = work / "docs" / "PIRX-PROJECT-BRIEF.md"
+    text = brief.read_text()
+    assert "\n| 0.7.2.0 |" in text
+    brief.write_text(text.replace("\n| 0.7.2.0 |", "\n| removed |", 1))
+
+    result = subprocess.run(
+        [sys.executable, str(work / "tools" / "docs_audit.py")],
+        capture_output=True, text=True, cwd=work,
+    )
+    assert result.returncode == 1
+    assert "0.7.2.0 shipped but brief section 6 has no row" in result.stderr
