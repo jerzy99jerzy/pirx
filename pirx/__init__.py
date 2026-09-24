@@ -6,4 +6,4 @@ no wiring site implemented. A spend whose clock reads before the grant was
 issued is refused, which bounds what one backward clock step can buy.
 """
 
-__version__ = "0.7.4.0"
+__version__ = "0.7.5.0"
