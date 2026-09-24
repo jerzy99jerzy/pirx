@@ -105,7 +105,7 @@ def verdict_evidence(verdict: Verdict) -> bytes:
         f"cve_id: {verdict.cve_id}",
         f"priority: {verdict.priority}",
         f"in_kev: {'true' if verdict.in_kev else 'false'}",
-        f"epss: {verdict.epss:.5f}",
+        f"epss: {'pending' if verdict.epss_pending else f'{verdict.epss:.5f}'}",
         f"cvss: {'pending' if verdict.cvss is None else f'{verdict.cvss:.1f}'}",
         f"cvss_pending: {'true' if verdict.cvss_pending else 'false'}",
         f"estate_state: {verdict.estate_state}",
