@@ -17,7 +17,11 @@ state, per FAMILY.md section 1:
      declares, so the reader's orientation cannot outlive a bump;
   7. README's badges carry numbers that match reality - a badge is a claim
      rendered in colour, and a stale one is read by everyone who never opens
-     the file behind it.
+     the file behind it;
+  8. every version README marks shipped has a row in the brief's section 6
+     version plan. 0.7.2.0 shipped, was reviewed, and sat in README's plan
+     with no row in the brief until brief v1.7 found it by reading; checks
+     1-7 could not see it, because none of them compares the two plans.
 
 Exit status is 0 when clean, 1 otherwise, so it slots into the gate beside
 ruff, mypy, and pytest. Failures print the specific mismatch, because an
@@ -181,6 +185,29 @@ def check_badges(problems: list[str]) -> None:
         )
 
 
+def check_plan_rows(problems: list[str]) -> None:
+    """Every version README marks shipped was planned in the brief.
+
+    Only the shipped side is compared. The brief plans ahead of README by
+    design, and micro versions carry no plan row in either document, so the
+    check is one-directional: README shipped is a subset of brief section 6.
+    """
+    readme = (ROOT / "README.md").read_text()
+    shipped = set(re.findall(r"\|\s*(0\.\d+\.\d+\.\d+)\s*\|[^|]*\*\*Shipped", readme))
+    brief = (DOCS / "PIRX-PROJECT-BRIEF.md").read_text()
+    section = re.search(r"^## 6\. Version plan\n(.*?)^## ", brief, re.M | re.S)
+    if section is None:
+        problems.append("brief has no '## 6. Version plan' section")
+        return
+    planned = set(
+        re.findall(r"^\|\s*\**(\d+\.\d+\.\d+\.\d+)\**\s*\|", section.group(1), re.M)
+    )
+    for version in sorted(shipped - planned):
+        problems.append(
+            f"README marks {version} shipped but brief section 6 has no row for it"
+        )
+
+
 def check_threat_numbering(problems: list[str]) -> None:
     """PT ids are never renumbered or repurposed, so the set must be 1..n."""
     text = (DOCS / "THREAT-MODEL.md").read_text()
@@ -206,6 +233,7 @@ def main() -> int:
     check_threat_numbering(problems)
     check_you_are_here(problems)
     check_badges(problems)
+    check_plan_rows(problems)
 
     if problems:
         print("docs audit FAILED:", file=sys.stderr)

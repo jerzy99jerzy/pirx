@@ -6,17 +6,17 @@ Project brief and first-sprint specification. Self-contained: executable in a
 fresh session with no context beyond this file.
 
 ```
-Brief version:  1.8   (changelog in section 11)
+Brief version:  1.9   (changelog in section 11)
 Repository:     github.com/jerzy99jerzy/pirx
 Consumes:       cve-digest.verdict/1
 Produced by:    github.com/jerzy99jerzy/cve-digest (display codename Rappaport)
 Language:       Python 3.14, English throughout
 Workflow:       conventions listed in section 8, adopted from cve-digest
-                practice. No WORKFLOW.md is vendored here (see F32)
+                practice; the procedure is docs/MERGE-PROCEDURE.md.
+                cve-digest's WORKFLOW.md is deliberately not vendored (F32)
 Versioning:     0.MAJOR.FEATURE.MICRO, same four-segment scheme
-Status:         shipped through 0.7.3.0; the authoritative version
-                state is STATUS.json and README's version plan, never
-                this line
+Status:         the authoritative version state is STATUS.json and
+                README's version plan, never this line
 ```
 
 The name is Lem's pilot: the man who is trusted with a ship precisely because
@@ -412,7 +412,8 @@ docs/
   CONTRACT.md     section 3, the compatibility policy, and the consumer-owned
                   compatibility matrix (which Pirx versions accept which
                   verdict schema ids)
-  FAMILY.md       vendored verbatim from cve-digest, version pinned in header
+  FAMILY.md       family practices and exchange protocol; canonical home
+                  and vendoring state in section 10
   exchange/       development-level exchange entries (PX-NNNN.md and RP
                   mirrors), per FAMILY.md section 3
 tests/
@@ -469,16 +470,27 @@ Adopted verbatim, because they were paid for in incidents:
   squash forbidden on any PR carrying a bump.
 - Branch protection with `enforce_admins`, required checks by their check-run
   names, auto-merge as a repository setting.
-- Local gate before push: ruff, mypy, `python -m pytest`, docs audit.
+- Local gate before push: ruff, mypy, `python -m pytest`. The suite runs
+  both documentation audits through `tests/test_docs_audit.py`, so drift
+  fails locally; CI runs them again as the separate `docs-audit` job.
 - A verification and the action it guards never share a pasted block.
-- A docs audit runs in the gate (`tools/docs_audit.py`), checking pin
-  consistency, review coverage, catalogue count, and PT numbering.
+- A docs audit runs in the gate (`tools/docs_audit.py`), checking the
+  invariants its own docstring lists, so the list has one home.
 - Explicit file lists; never `git add -A`.
 - Docstrings register what a module does **not** do, with reasoning.
 - Claims are measured, not asserted. A number in the documentation is either
   something the code produced or it is not in the documentation.
 - Pre-push code review in `docs/reviews/`, findings dispositioned as fixed,
   accepted with reasons, or deferred.
+
+**Not carried: cve-digest's `WORKFLOW.md`** (F32, PX-0001 item 6, decided
+2026-09-24). The conventions above are the ones Pirx adopted, restated here;
+the procedure that applies them is `docs/MERGE-PROCEDURE.md`, scoped to this
+repository by its own header. A pinned copy of a second process document
+would be a second source of truth on the same subject and stale by
+construction - upstream moved from 1.6 to 1.7 six days after Pirx first read
+it. A rule worth adopting from either side travels as a
+`convention-amendment` exchange entry (FAMILY.md 3.5).
 
 ---
 
@@ -549,8 +561,10 @@ that none of it is re-argued mid-sprint.
 
 ## 10. Development-level continuity with Rappaport
 
-Governed by `docs/FAMILY.md`, vendored from cve-digest, which carries the
-extracted family practices (P1-P13) and the exchange protocol. What matters at
+Governed by `docs/FAMILY.md`, which carries the extracted family practices
+(P1-P13) and the exchange protocol. Its canonical home is cve-digest, where
+it lands after that repository's 0.8.0.0 gate; until then the copy here is
+the only one. What matters at
 the level of this brief:
 
 - **The runtime rule and the development rule are different rules, and both
@@ -577,6 +591,21 @@ the level of this brief:
 ---
 
 ## 11. Changelog
+
+**v1.9** - three decisions that were each "either is fine", taken.
+
+- **WORKFLOW.md is not vendored** (F32 closed). Section 8 says so and why; the
+  header no longer defers to a finding for the answer.
+- **FAMILY.md's canonical home is recorded, not chosen here.** cve-digest had
+  already decided it in a brief that never crossed back; section 10 and
+  FAMILY.md 1.2 now say what that side says.
+- **The local gate is described as it runs.** `python -m pytest` has carried
+  both audits since they existed; section 8 said "docs audit" as a fourth
+  step and never mentioned the manual audit. The audit's check list is no
+  longer restated in section 8, which had it at four of seven.
+- The `Status` header line drops its version number. It was the one line in
+  this brief guaranteed to be stale after every bump, and STATUS.json already
+  owns the question.
 
 **v1.8** - the two-writer ledger, and two claims that outlived their topology.
 
