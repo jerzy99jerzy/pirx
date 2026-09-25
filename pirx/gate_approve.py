@@ -27,6 +27,7 @@ Does NOT:
 from __future__ import annotations
 
 import json
+import os
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -110,16 +111,37 @@ def approve_pending(
             out.write(f"refused: {exc.message}\n")
             continue
 
-        (grants_dir / f"{action_hash}.json").write_bytes(grant.to_json())
+        # The record first, then the authority (F65). A crash between the two
+        # leaves `grant.issued` with no file - a record without authority, the
+        # safe direction - and never a spendable grant no ledger mentions.
         ledger.append(
             "grant.issued",
             nonce=str(grant.nonce), action_hash=str(grant.action_hash),
             target=str(grant.target), justification=str(grant.justification),
             ttl_seconds=round(grant.deadline - grant.issued_at, 3),
         )
+        _write_whole(grants_dir / f"{action_hash}.json", grant.to_json())
         out.write(f"granted: {ticket}\n")
         issued += 1
     return issued
+
+
+def _write_whole(path: Path, data: bytes) -> None:
+    """Write a grant file so a reader sees all of it or none of it.
+
+    The bytes go to a hidden sibling, are flushed and fsynced, and the sibling
+    is renamed over the final name. `os.replace` is atomic within a directory
+    on POSIX, and the gate reads by exact name, so it can never read a torn
+    grant from this writer (F65). An interrupted write leaves only the
+    sibling, `.HASH.json.tmp`, which nothing reads and the operator may
+    delete.
+    """
+    staging = path.with_name(f".{path.name}.tmp")
+    with open(staging, "wb") as handle:
+        handle.write(data)
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(staging, path)
 
 
 def _reconstruct(canonical: bytes, action_hash: str) -> RenderedProposal:

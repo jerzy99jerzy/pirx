@@ -6,7 +6,7 @@
 > word.
 
 ```
-Document:   docs/ARCHITECTURE.md, version 2.4
+Document:   docs/ARCHITECTURE.md, version 2.5
 Refers to:  PIRX-PROJECT-BRIEF.md v1.11 (thesis, threat model PT1-PT14
             there, PT15-PT21 in THREAT-MODEL.md, version plan), FAMILY.md
             v1.2 (practices P1-P13), PIRX-GATE-DESIGN.md v1.1 (0.5.0.0-0.8.0.0
@@ -16,8 +16,9 @@ Covers:     sprints 0.1.0.0 (trust loop), 0.2.0.0 (harness), 0.3.0.0 (first
             approval), 0.6.0.0 (justification abstraction), 0.7.0.0 (the
             gate, and three format changes), 0.7.1.0 (the stdio pump, and
             the manual), 0.7.3.0 (two writers on one ledger), each in its own
-            section; and 0.7.5.0's clock in sections 1.1, 1.3 and A22.
-            0.7.2.0, 0.7.4.0 and 0.7.5.1 changed no structure described here
+            section; 0.7.5.0's clock in sections 1.1, 1.3 and A22; and
+            0.7.6.0's grant read in 5D.2. 0.7.2.0, 0.7.4.0 and 0.7.5.1
+            changed no structure described here
 Authority:  implementation level only. Where this document appears to
             conflict with the brief or a threat-model row, the brief wins
             and the conflict is a finding (FAMILY.md section 4). Settled
@@ -584,7 +585,7 @@ flowchart TD
     RENDER --> PEND["pending file, on first sight<br/><i>gate.pending</i>"]
     PEND --> HAS{"grant file named by<br/>this action hash?"}
     HAS -->|"no"| TICKET["MRTR poll ticket<br/><i>gate.awaiting_approval</i>"]
-    HAS -->|"unparseable"| REF4["refusal.malformed_grant<br/><i>escapes handle: the pump<br/>exits 3, no reply (F65)</i>"]
+    HAS -->|"unparseable"| REF4["refusal.malformed_grant<br/><i>a grant file is input too (F65)</i>"]
     HAS -->|"yes"| SPEND["verify MAC, coverage, target,<br/>not before issuance, deadline;<br/>burn the nonce durably"]
     SPEND -->|"any check fails"| REF3["refusal.grant_mac, hash_mismatch,<br/>target_mismatch, grant_not_yet_valid,<br/>expired_grant, spent_grant"]
     SPEND --> FWD2["record, then forward the ORIGINAL bytes<br/><i>gate.forwarded_granted</i>"]
@@ -597,10 +598,10 @@ flowchart TD
 ```
 
 Every refusal drawn is recorded first and answered with a JSON-RPC error,
-and nothing is forwarded on any of them - except the malformed-grant branch,
-which is drawn because the code has it: until 0.7.6.0 a grant file that does
-not parse escapes `Gate.handle`, and the pump records the refusal and ends
-the session without answering (F65).
+and nothing is forwarded on any of them. The malformed-grant branch joined
+that rule at 0.7.6.0: before it, a grant file that did not parse escaped
+`Gate.handle`, and the pump recorded the refusal and ended the session
+without answering (F65).
 
 Three rules make this the design rather than an implementation detail:
 

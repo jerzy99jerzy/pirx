@@ -6,9 +6,10 @@
 > guardrail assumes the agent - and the human approving it - can be wrong.
 
 ```
-Document:  docs/THREAT-MODEL.md, version 1.1 (0.7.5.1). 1.0 shipped with
+Document:  docs/THREAT-MODEL.md, version 1.2 (0.7.6.0: PT9 records issuance
+           before the grant file). 1.1 with 0.7.5.1; 1.0 shipped with
            0.1.0.0 as PT1-PT14; PT15 (0.5.0.0), PT16-PT20 (0.7.0.0) and
-           PT21 (0.7.5.0) landed without a header change, corrected here
+           PT21 (0.7.5.0) landed without a header change, corrected in 1.1
 Source:    PT1-PT14 from PIRX-PROJECT-BRIEF.md v1.2, section 5; each later
            row from the version named above. PT numbering is never
            renumbered or repurposed
@@ -154,8 +155,13 @@ produced by the manual's own procedure (F59). **Named residual:** `flock` is
 advisory and local, so the ordering claim covers writers on one filesystem
 and nothing else; a shared or networked ledger is the first networked
 transport and fires PT14's trigger rather than arriving quietly.
-**Lives in** `ledger.py`. **Measured by** `test_ledger_chain.py`, in
-particular `test_two_writers_on_one_file_keep_the_chain_intact`.
+Since 0.7.6.0 `gate-approve` records `grant.issued` before it writes the
+grant file, and writes the file whole, so a crash leaves a record without
+authority and never authority without a record (F65).
+**Lives in** `ledger.py`, `gate_approve.py`. **Measured by**
+`test_ledger_chain.py`, in particular
+`test_two_writers_on_one_file_keep_the_chain_intact`, and
+`test_gate_approve.py::test_a_failed_grant_write_leaves_a_record_and_no_authority`.
 
 ## PT10 - Feedback loop toward the ranking system
 

@@ -16,8 +16,9 @@ from typing import Any
 from conftest import FakeClock, grant_issuer
 
 from pirx import ledger
+from pirx.errors import MalformedGrantRefusal
 from pirx.mcp.gate import Gate, GatedRegistry, GatedTool
-from pirx.mcp.protocol import tool_definition_hash
+from pirx.mcp.protocol import parse_request, tool_definition_hash
 from pirx.mcp.pump import MAX_FRAME_BYTES, DownstreamGone, pump
 
 VERSION = "2026-07-28"
@@ -232,3 +233,47 @@ def test_a47c_an_ungated_call_is_forwarded_byte_identical(
     sent = frame()
     run(gate, sent + b"\n")
     assert forwarded == [sent]
+
+
+# --- A49b: a torn grant file must not end the session -----------------------
+
+
+def test_a49b_the_pump_keeps_serving_past_an_unparseable_grant(
+    tmp_path: Path,
+) -> None:
+    """The F65 reproduction, through the real loop: with an empty file at the
+    grant path both frames are answered and the pump exits 0. Before 0.7.6.0
+    it answered neither and exited 3 - a session killed by a file, the class
+    A45b defends against."""
+    gate, forwarded = build(tmp_path, gated=True)
+    gate.handle(frame())
+    rendered = gate.proposal_for(parse_request(frame()))
+    gate.grants_dir.mkdir(parents=True, exist_ok=True)
+    (gate.grants_dir / f"{rendered.action_hash}.json").write_bytes(b"")
+
+    code, out, _ = run(gate, frame() + b"\n" + frame() + b"\n")
+
+    assert code == 0
+    assert len(out.splitlines()) == 2
+    assert forwarded == []
+    assert events(tmp_path).count("refusal.malformed_grant") == 2
+
+
+def test_a_refusal_escaping_handle_ends_the_session_on_the_record(
+    tmp_path: Path,
+) -> None:
+    """The pump's last line. `Gate.handle` answers its own refusals, so one
+    arriving at the pump means that contract broke: exit 3, nothing on
+    stdout, the refusal in the ledger. This path was excluded from coverage
+    as unreachable until F65 reached it."""
+    gate, _ = build(tmp_path, gated=False)
+
+    def broken(raw: bytes, headers: dict[str, str] | None = None) -> bytes:
+        raise MalformedGrantRefusal("contract broken on purpose")
+
+    gate.handle = broken  # type: ignore[method-assign]
+    code, out, _ = run(gate, frame() + b"\n")
+
+    assert code == 3
+    assert out == b""
+    assert "refusal.malformed_grant" in events(tmp_path)

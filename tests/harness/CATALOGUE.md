@@ -1,9 +1,10 @@
 # Hostile-agent attack catalogue
 
 ```
-Document:  tests/harness/CATALOGUE.md, version 1.5 (A31-A35 with 0.5.0.0,
+Document:  tests/harness/CATALOGUE.md, version 1.6 (A31-A35 with 0.5.0.0,
            A36 with 0.6.0.0, A37-A43 with 0.7.0.0, A48 with 0.7.5.0;
-           rows for A44-A47c with 0.7.5.1, attacks shipped in 0.7.1.0, F64)
+           rows for A44-A47c with 0.7.5.1, attacks shipped in 0.7.1.0, F64;
+           A49-A49b with 0.7.6.0)
 Source:    docs/ARCHITECTURE.md section 4.2
 Runs in:   CI on every push, same gate as unit tests - not nightly, because
            a control verified occasionally is a control that regresses
@@ -84,6 +85,18 @@ future owner, not silent scope (P12).
 | A47b | Gated call through the real loop, no grant | PT7 | `gate.awaiting_approval`; `input_required`, nothing forwarded | `test_a47b_a_held_call_answers_with_a_ticket_and_forwards_nothing` |
 | A47c | Ungated call through the real loop | PT7 | forwarded byte-identical to what the client sent | `test_a47c_an_ungated_call_is_forwarded_byte_identical` |
 | A48 | Clock rollback past issuance: spend clock an hour before `issued_at` | PT4, PT21 | `refusal.grant_not_yet_valid`; nothing spent | `test_a48_clock_rollback_past_issuance` |
+| A49 | Unparseable grant file at the covered path | PT1 | `refusal.malformed_grant`; JSON-RPC error, nothing forwarded | `test_a49_an_unparseable_grant_file_is_refused_and_answered` |
+| A49b | The same file through the real loop, two frames | PT1 | both answered, exit 0; nothing forwarded | `test_a49b_the_pump_keeps_serving_past_an_unparseable_grant` |
+
+## A49 exists because a file is input too
+
+The gate reads grants from a directory another process writes, so a file at
+the covered path is input from across a process boundary, and it gets what
+the gate's other inputs get: refused as a type, answered, recorded, and the
+session keeps serving. Until 0.7.6.0 it did not (F65). The read sat outside
+`Gate.handle`'s refusal boundary, and an empty file - what `gate-approve`
+left if interrupted mid-write - ended the pump without an answer. A49b is
+that reproduction through the real loop.
 
 ## A44-A47c exist because the pump is transport
 

@@ -1,11 +1,10 @@
 """Pirx: a write-capable remediation agent whose authority is granted per
 action, not per session.
 
-Version 0.7.5.1: documentation only. The documents are reconciled with the
-code - the pump's attacks catalogued (F64), the two-writer ledger folded into
-ARCHITECTURE, every diagram checked against the path it draws. Behaviour is
-0.7.5.0's: a grant expires on the wall clock, and a spend whose clock reads
-before the grant was issued is refused.
+Version 0.7.6.0: a grant file is input. One that does not parse is refused
+and answered, and the gate keeps serving; `gate-approve` records
+`grant.issued` before it writes the grant, and writes it whole, so a crash
+leaves a record without authority, never the reverse (F65).
 """
 
 __version__ = "0.7.5.1"
