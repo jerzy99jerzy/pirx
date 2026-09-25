@@ -1,8 +1,9 @@
 # Hostile-agent attack catalogue
 
 ```
-Document:  tests/harness/CATALOGUE.md, version 1.4 (A31-A35 with 0.5.0.0,
-           A36 with 0.6.0.0, A37-A43 with 0.7.0.0, A48 with 0.7.5.0)
+Document:  tests/harness/CATALOGUE.md, version 1.5 (A31-A35 with 0.5.0.0,
+           A36 with 0.6.0.0, A37-A43 with 0.7.0.0, A48 with 0.7.5.0;
+           rows for A44-A47c with 0.7.5.1, attacks shipped in 0.7.1.0, F64)
 Source:    docs/ARCHITECTURE.md section 4.2
 Runs in:   CI on every push, same gate as unit tests - not nightly, because
            a control verified occasionally is a control that regresses
@@ -72,7 +73,34 @@ future owner, not silent scope (P12).
 | A42c | Malformed JSON-RPC bodies | PT1 | JSON-RPC error; nothing forwarded | `test_a42c_malformed_bodies_never_reach_the_downstream` |
 | A42d | Drift refusal reachable from the registry | PT16 | `ToolDefinitionDriftRefusal` | `test_a42d_drift_refusal_type_is_reachable_from_the_registry` |
 | A43 | Field-line forgery via intercepted-call arguments | PT2, PT6 | JSON escaping keeps the payload on one line; no forged field | `test_a43_arguments_cannot_forge_a_field_line` |
+| A44 | Two frames in one read | PT9 | two calls: two forwards, two replies | `test_a44_two_frames_in_one_read_are_two_calls` |
+| A44b | Last frame with no trailing newline | PT9 | read and forwarded; the reply is newline-terminated | `test_a44b_a_frame_with_no_trailing_newline_is_still_read` |
+| A44c | Blank lines around a frame | PT9 | skipped, not parsed: one call, one reply | `test_a44c_blank_lines_are_skipped_not_parsed` |
+| A45 | Oversized frame: `MAX_FRAME_BYTES` + 10 | PT1 | `gate.oversized_frame`; refused before parsing, nothing forwarded | `test_a45_an_oversized_frame_is_refused_before_parsing` |
+| A45b | An honest frame after an oversized one | PT1 | exactly two replies: the refusal and the honest call | `test_a45b_the_pump_keeps_serving_after_an_oversized_frame` |
+| A45c | A valid call smuggled behind padding past the bound | PT1 | part of the refused line; nothing forwarded | `test_a45c_padding_cannot_smuggle_a_frame_behind_the_bound` |
+| A46 | Downstream closes its pipe mid-call | PT9 | `gate.downstream_gone`, exit 74, nothing on stdout | `test_a46_a_dead_downstream_ends_the_pump_without_faking_a_result` |
+| A47 | A non-JSON line after a gated frame | PT1 | every stdout line parses as JSON-RPC; diagnostics on stderr | `test_a47_stdout_is_protocol_only` |
+| A47b | Gated call through the real loop, no grant | PT7 | `gate.awaiting_approval`; `input_required`, nothing forwarded | `test_a47b_a_held_call_answers_with_a_ticket_and_forwards_nothing` |
+| A47c | Ungated call through the real loop | PT7 | forwarded byte-identical to what the client sent | `test_a47c_an_ungated_call_is_forwarded_byte_identical` |
 | A48 | Clock rollback past issuance: spend clock an hour before `issued_at` | PT4, PT21 | `refusal.grant_not_yet_valid`; nothing spent | `test_a48_clock_rollback_past_issuance` |
+
+## A44-A47c exist because the pump is transport
+
+The pump carries every call between two real programs, so a transport fault
+can void a control without the gate noticing. Each attack maps to the row
+whose control that fault would void: a frame merged, dropped, or invented is
+a call whose ledger record no longer matches the wire (PT9); a frame past the
+bound, or a call hidden behind one, is hostile-shaped input getting through
+(PT1); a held or ungated call through the real loop must behave exactly as it
+does at the gate (PT7, as A37 and A42b). A46 asserts an exit rather than a
+refusal: a dead downstream is recorded as a fact, never answered with an
+error that would tell the caller a decision was made.
+
+These ten shipped with 0.7.1.0 in `test_pump.py` and had no rows here until
+0.7.5.1 (F64). From 0.7.1.0 through 0.7.5.0 "one row per attack" and the
+badge both undercounted by ten; the attacks ran in CI throughout, and the
+catalogue was what was missing.
 
 ## A37-A42d exist because the gate stands between two machines
 
@@ -147,16 +175,18 @@ retry carrying authority across a crash is PT8 wearing a helpful face. A18
 pins the related rule: the far side saying no is not a refusal by Pirx, and
 it does not refund authority.
 
-## A11 likewise documents rather than defends
+## A11 documented rather than defended, through 0.6.0.0
 
-An in-process spent-set is per-process. A11 shows that, so the coupling
-between HMAC grants and a durable spend store (P5, settled decision 2) rests
-on a demonstrated fact rather than an argument.
+An in-process spent-set was per-process, and A11 showed it, so the coupling
+between HMAC grants and a durable spend store (P5, settled decision 2) rested
+on a demonstrated fact rather than an argument. It was inverted at 0.7.0.0,
+when the pair shipped; see the A37-A42d section.
 
 ## What the harness does not do
 
 - No fuzzing, no property-based generation, no model-driven attack synthesis.
-- No network, no external services: every attack runs against the same
-  single-process pipeline the runner uses.
+- No network, no external services: every attack runs in-process against
+  the shipped objects - the runner's pipeline, the gate, and the pump's loop
+  over in-memory streams - with clocks, keys, and transports injected.
 - No assertion on log text. Events are matched by name and payload field, so
   rewording a message is not a test failure and removing an event is.

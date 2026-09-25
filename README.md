@@ -5,11 +5,11 @@
 not per session.**
 
 [![gate](https://github.com/jerzy99jerzy/pirx/actions/workflows/gate.yml/badge.svg)](https://github.com/jerzy99jerzy/pirx/actions/workflows/gate.yml)
-[![version](https://img.shields.io/badge/version-0.7.5.0-7aa2f7)](https://github.com/jerzy99jerzy/pirx/releases)
+[![version](https://img.shields.io/badge/version-0.7.5.1-7aa2f7)](https://github.com/jerzy99jerzy/pirx/releases)
 [![python](https://img.shields.io/badge/python-3.14%2B-7aa2f7)](https://www.python.org/downloads/)
 [![runtime deps](https://img.shields.io/badge/runtime%20deps-0-3ddc84)](pyproject.toml)
 [![tests](https://img.shields.io/badge/tests-233-3ddc84)](tests/)
-[![hostile attacks](https://img.shields.io/badge/hostile%20attacks-51-3ddc84)](tests/harness/CATALOGUE.md)
+[![hostile attacks](https://img.shields.io/badge/hostile%20attacks-61-3ddc84)](tests/harness/CATALOGUE.md)
 [![threat rows](https://img.shields.io/badge/threat%20rows-PT1--PT21-9ccfd8)](docs/THREAT-MODEL.md)
 [![capabilities registered](https://img.shields.io/badge/capabilities%20registered-1-ffb86c)](pirx/registry.py)
 [![gated tools](https://img.shields.io/badge/gated%20tools-0-ffb86c)](pirx/mcp/gate.py)
@@ -68,7 +68,7 @@ itself.
 | Approval is measurably attentive | 0.5.0.0 | A grant needs `AttentionEvidence`: a hash-selected field transcribed from the rendered bytes, an answer above a length-derived floor, a session budget. Verified at the surface and again at issuance. Demonstrates the approver operated on those bytes - never that they understood them. |
 | Evidence is a type, not a field | 0.6.0.0 | Why an action is warranted arrives as a `Justification` from a source adapter, so a second kind of evidence is an addition rather than a rewrite. The verdict path renders the same bytes it always did, held as a golden preimage. |
 
-**You are here: 0.7.5.0.** The `Since` column is the version in which a
+**You are here: 0.7.5.1.** The `Since` column is the version in which a
 property became enforced, not the version that announced it; the marker is
 pinned to `STATUS.json` by the docs audit, so it cannot drift past a bump.
 
@@ -330,7 +330,7 @@ flowchart TB
     V["verdict.json"] --> C["consumer<br/><i>hostile input becomes typed</i>"]
     C --> PR["proposer<br/><i>selection from the registry;<br/>budget enforced</i>"]
     PR --> RN["renderer<br/><i>the canonical bytes</i>"]
-    RN --> AP["approval CLI<br/><i>prints those bytes verbatim</i>"]
+    RN --> AP["approval CLI<br/><i>prints those bytes verbatim,<br/>asks the attention challenge</i>"]
     AP --> H(["human"])
     H -->|approves| G["grant<br/><i>one action, once, briefly</i>"]
     G --> CAP["capability<br/><i>at-most-once</i>"]
@@ -360,7 +360,7 @@ back to make a decision.
 | Module | Role |
 |---|---|
 | `consumer.py` | Parse and validate `cve-digest.verdict/1` as hostile input |
-| `proposer.py` | Deterministic verdict-to-proposal mapping; enforces the budget |
+| `proposer.py` | Verdict-to-proposal mapping, deterministic unless model assistance is enabled; enforces the budget |
 | `proposal.py` | The single canonical renderer and the action hash |
 | `approve.py` | Terminal approval surface; prints the hashed bytes verbatim |
 | `grant.py` | Issue, verify totally, spend once |
@@ -372,6 +372,7 @@ back to make a decision.
 | `session.py` | The shared recording path used by the runner and the harness |
 | `ledger.py` | Hash-chained append-only JSONL, plus its verifier |
 | `errors.py` | The refusal taxonomy; there is no warning type in this codebase |
+| `types.py` | Security constants (P6), identifier types, and the untrusted-prose type |
 
 Full detail in `docs/ARCHITECTURE.md`.
 
@@ -379,21 +380,25 @@ Full detail in `docs/ARCHITECTURE.md`.
 
 ## The harness
 
-`tests/harness/` runs thirty scripted attacks in CI on every push, one per
-threat-model row. The pass criterion is uniform: the attack ends in the
-correct typed refusal **and** that refusal appears in the ledger the product
-wrote. Asserting on the exception alone would test the code path; asserting
-on the ledger tests the deliverable.
+`tests/harness/` runs every attack in `tests/harness/CATALOGUE.md` in CI on
+every push, each mapped to the threat-model row it tries to violate. The count
+is in the badge above, which the docs audit checks against the catalogue; this
+sentence used to carry a number no audit checked, and it still said "thirty"
+at 0.7.5.0. The pass criterion is uniform: the attack ends in the correct
+typed refusal **and** that refusal appears in the ledger the product wrote.
+Asserting on the exception alone would test the code path; asserting on the
+ledger tests the deliverable.
 
-The catalogue is `tests/harness/CATALOGUE.md`. Two rows are worth knowing
-about:
+Three rows are worth knowing about:
 
 - **A15 passes by design.** It asserts that a perfectly well-formed payload
   from an unauthenticated origin is accepted, which is what PT14 says. When
   the first networked transport lands, this test flips to asserting refusal.
-- **A11 documents rather than defends.** It shows that an in-process
-  spent-set is per-process, which is why HMAC grants and a durable spend
-  store are coupled and must ship in the same version.
+- **A11 was inverted, not deleted.** Through 0.6.0.0 it showed that an
+  in-process spent-set is per-process, which is why HMAC grants and a durable
+  spend store were coupled; since 0.7.0.0 they ship together and A11 asserts
+  that the replay is refused. An accepted risk that became controlled keeps
+  its row.
 - **A21-A29 treat the model as an adversary** holding a copy of the source,
   because from a control standpoint it is indistinguishable from one.
 
@@ -415,15 +420,15 @@ The suite runs both documentation audits, `tools/docs_audit.py` and
 drift fails locally rather than after a push. CI runs them again as a separate
 `docs-audit` job so a failure names itself. What each audit checks is listed
 in its own docstring rather than restated here, where it would drift.
-It runs as a fourth CI job.
 
 Branch protection is active on `main` with `enforce_admins`, so every change
 goes through a pull request. The merge procedure, including what `strict`
 status checks cost and how tags interact with rebase merges, is in
 `docs/MERGE-PROCEDURE.md`.
 
-Conventions inherited from the upstream project, adopted verbatim because
-they were paid for in incidents: four-segment versioning with the bump as its
+Conventions inherited from the upstream project, restated in this
+repository's own documents rather than vendored (FAMILY.md 3.5), because they
+were paid for in incidents: four-segment versioning with the bump as its
 own commit; squash merge forbidden; explicit file lists, never `git add -A`;
 docstrings register what a module does **not** do, with reasoning; claims are
 measured, not asserted; pre-push review in `docs/reviews/` with every finding
@@ -445,6 +450,7 @@ dispositioned as fixed, accepted with reasons, or deferred.
 | `docs/FAMILY.md` | Family practices and the human-carried exchange protocol; held here until its canonical home in cve-digest lands |
 | `docs/TODO.md` | Small non-scope work, each row with a named owner |
 | `tools/docs_audit.py` | The documentation consistency check that runs in the gate |
+| `tools/manual_audit.py` | The manual's constants, refusals, and events, checked against the code |
 | `docs/reviews/` | Pre-push reviews, one per version, findings dispositioned |
 | `docs/exchange/` | Development-level exchange entries with the upstream project |
 | `tests/harness/CATALOGUE.md` | The attack catalogue |
@@ -471,11 +477,12 @@ dispositioned as fixed, accepted with reasons, or deferred.
 | 0.9.0.0 | Streamable HTTP transport for the gate, and the detached payload signature its own threat row makes due at that point |
 | 1.0.0.0 | Defined by condition, not by content: brief section 6.1 |
 
-Deferred with named owners, not forgotten: HMAC grants plus a durable spend
-store (owned by the first multi-process version, coupled - either both or
-neither); a detached signature on the verdict payload (first networked
-transport); a remote append-only ledger sink; batch approval (refused as a
-design until replay, staleness, and substitution are proven in production).
+Deferred with named owners, not forgotten: a detached signature on the
+verdict payload (first networked transport); a remote append-only ledger
+sink; batch approval (refused as a design until replay, staleness, and
+substitution are proven in production). HMAC grants and a durable spend
+store stood on this list, coupled, until the first multi-process version;
+they shipped together in 0.7.0.0.
 
 ---
 
@@ -484,9 +491,12 @@ design until replay, staleness, and substitution are proven in production).
 This project's own rule is that a number appears in documentation only when
 the code produced it. Accordingly:
 
-- Gated on Python 3.14.6 (macOS) and in CI on 3.14: ruff clean, mypy strict
-  clean, **140 tests passing**, of which 30 are harness attacks, plus a docs
-  audit that was itself verified by four mutants before being trusted.
+- Gated locally on macOS and in CI on Python 3.14: ruff clean, mypy strict
+  clean, and the test and attack counts in the badges above, which the docs
+  audit reconciles with a real test collection and with the catalogue on
+  every run. The docs audit was itself verified by four mutants before it
+  was trusted (0.4.0.2). A count written in this paragraph instead of a
+  badge went stale: at 0.7.5.0 it still said 140 tests and 30 attacks.
 - The ledger chain detects record edits and interior gaps. It does **not**
   detect truncation of the tail; a test asserts that limitation so nobody
   claims otherwise. Every append is flushed and fsynced, and a test measures

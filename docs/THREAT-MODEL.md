@@ -6,8 +6,11 @@
 > guardrail assumes the agent - and the human approving it - can be wrong.
 
 ```
-Document:  docs/THREAT-MODEL.md, version 1.0 (ships with 0.1.0.0)
-Source:    PIRX-PROJECT-BRIEF.md v1.2, section 5; PT numbering is never
+Document:  docs/THREAT-MODEL.md, version 1.1 (0.7.5.1). 1.0 shipped with
+           0.1.0.0 as PT1-PT14; PT15 (0.5.0.0), PT16-PT20 (0.7.0.0) and
+           PT21 (0.7.5.0) landed without a header change, corrected here
+Source:    PT1-PT14 from PIRX-PROJECT-BRIEF.md v1.2, section 5; each later
+           row from the version named above. PT numbering is never
            renumbered or repurposed
 ```
 
@@ -120,11 +123,19 @@ whole of `test_no_capabilities.py`.
 
 ## PT8 - Privilege accumulation across runs
 
-**Control.** No persistent credential; grants die with their action and their
-process. The residual is documented executably:
-`test_grant.py::test_authority_does_not_survive_a_new_issuer` *shows* that an
-in-memory spent-set is per-process, which is why HMAC grants and a durable
-spend store are coupled (P5) and land together at the first process split.
+**Control.** No persistent credential. A grant authorises one action, once,
+and expires on the wall clock (PT4). Since 0.7.0.0 it is a file that
+outlives the process that issued it, by design - the gate and the approval
+surface are separate processes - so what stops it accumulating is the
+durable spend store, whose burnt nonce holds for every process sharing the
+store. The store shipped together with the HMAC that makes the file
+verifiable (P5).
+**History.** Through 0.6.0.0 the spent-set was in memory, and
+`test_grant.py::test_authority_does_not_survive_a_new_issuer` documented the
+residual: a second issuer accepted the replay. It and harness A11 were
+inverted at 0.7.0.0 and now assert refusal.
+**Lives in** `grant.py`, `spendstore.py`. **Measured by**
+`test_grant.py::test_authority_does_not_survive_a_new_issuer`, harness A11.
 
 ## PT9 - Ledger tampering or gaps
 
@@ -150,7 +161,9 @@ particular `test_two_writers_on_one_file_keep_the_chain_intact`.
 
 **Control.** No write path back to Rappaport: no import, no client configured
 with its endpoints, no shared file. The network-import scrape doubles as the
-enforcement point (the network allowlist is empty in this version). The
+enforcement point: its allowlist holds `adapters/jira.py` (0.3.0.0) and
+`model/client.py` (0.4.0.0), and neither is configured with Rappaport's
+endpoints. The
 sanctioned backchannel is a human carrying files in `docs/exchange/`
 (FAMILY.md section 3).
 **Measured by** `test_no_capabilities.py::test_no_network_imports_outside_the_allowlist`.

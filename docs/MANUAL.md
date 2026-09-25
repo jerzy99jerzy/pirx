@@ -5,7 +5,8 @@
 > instruments. This document is the instrument panel.
 
 ```
-Document:  docs/MANUAL.md, version 2.2 (2.2: the grant clock, 0.7.5.0)
+Document:  docs/MANUAL.md, version 2.3 (2.3: the gate's ledger trail drawn
+           as two processes, 0.7.5.1; 2.2: the grant clock, 0.7.5.0)
 Audience:  the operator - the person who runs Pirx, answers its prompts, and
            is asked afterwards what happened. Assumes competence, not
            familiarity
@@ -446,6 +447,11 @@ you find yourself wanting to, the volume is wrong, not the control.
 }
 ```
 
+That is the runner's record. `gate-approve` writes the same event without
+`challenge_passed` and `floor_seconds` (F66, owner 0.8.0.0); the floor for a
+gated proposal can be recomputed from the `byte_length` in its `gate.pending`
+record, which is the length the floor was computed from.
+
 `approver_claim` comes from the process environment. It sits beside
 `authenticated: false` in the same record, because Pirx does not authenticate
 you and the ledger must not let a reader mistake a claim for an identity.
@@ -587,33 +593,43 @@ for line in open('my-ledger.jsonl'):
 A completed gated call:
 
 ```mermaid
+%%{init: {'theme': 'dark'}}%%
 sequenceDiagram
     autonumber
     participant A as agent host
     participant G as pirx-gate
     participant L as ledger
+    participant AP as pirx gate-approve
     participant H as human
     participant D as downstream
 
     Note over G,L: gate.started - pid, executable, downstream command
     A->>G: tools/call
-    G->>L: gate.pending
-    G-->>A: input_required (poll ticket)
+    G->>L: gate.pending (first sight of these bytes only)
     G->>L: gate.awaiting_approval
-    H->>G: pirx gate-approve
-    G->>L: gate.presented
-    G->>L: attention.challenge_issued
-    Note right of H: intent recorded BEFORE the answer
-    H->>G: transcription + approve
-    G->>L: approval.decided (elapsed_seconds, floor_seconds)
-    G->>L: grant.issued
+    G-->>A: input_required (poll ticket)
+    H->>AP: pirx gate-approve
+    AP->>L: gate.presented
+    AP->>L: attention.challenge_issued
+    Note right of AP: intent recorded BEFORE the answer
+    H->>AP: transcription + approve
+    AP->>L: approval.decided (challenge_field, elapsed_seconds)
+    AP->>L: grant.issued
+    Note over G,AP: two processes, one ledger file, ordered by flock
     A->>G: tools/call (retry)
-    G->>D: the original bytes
     G->>L: gate.forwarded_granted
+    G->>D: the original bytes
+    D-->>G: result
+    G-->>A: result
     A->>G: tools/call (replay)
     G->>L: refusal.spent_grant
     G-->>A: error: grant already spent
 ```
+
+Two processes write this trail - the pump and each `gate-approve` walk - and
+the order is the code's: the gate records `gate.awaiting_approval` before it
+answers, and `gate.forwarded_granted` before it forwards, so an interrupted
+forward leaves a record rather than silence.
 
 ### 8.4 Three habits worth forming
 
@@ -777,7 +793,7 @@ calculator, which is the point.
 | `prose.truncated` | producer or model text exceeded the bound |
 | `review_lane.collision` | an item appeared in both the digest and the review lane |
 | `attention.challenge_issued` | the challenge was shown, before the answer |
-| `approval.decided` | a human answered; carries attention evidence |
+| `approval.decided` | a human answered; carries attention evidence (the runner adds `challenge_passed` and `floor_seconds`, which `gate-approve` omits: F66) |
 | `grant.issued` | authority was created |
 | `grant.spent` | the nonce was burnt; carries the nonce alone |
 | `capability.attempt` | the action is about to run |
@@ -924,6 +940,13 @@ worse than the break.
 after upgrading** - the grant was issued by 0.7.4.0 or earlier, whose
 deadlines are seconds since boot rather than since 1970. Every such grant is
 refused as expired, which is the safe direction: approve again.
+
+**The gate exits with code 3 right after `refusal.malformed_grant`** - a file
+in `grants/` that does not parse as a grant ends the pump instead of being
+answered as an error (F65, owner 0.7.6.0). `gate-approve` does not write
+grant files atomically, so an approver interrupted mid-write can leave an
+empty one. That file never held a grant that could verify: remove it,
+restart the gate, and approve the call again.
 
 **Tests fail with `FileNotFoundError` on a key path** - you are running a
 checkout older than 0.7.1.0. The suite has stripped Pirx's environment since.

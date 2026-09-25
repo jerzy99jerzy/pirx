@@ -6,7 +6,7 @@
 > word.
 
 ```
-Document:   docs/ARCHITECTURE.md, version 2.3
+Document:   docs/ARCHITECTURE.md, version 2.4
 Refers to:  PIRX-PROJECT-BRIEF.md v1.11 (thesis, threat model PT1-PT14
             there, PT15-PT21 in THREAT-MODEL.md, version plan), FAMILY.md
             v1.2 (practices P1-P13), PIRX-GATE-DESIGN.md v1.1 (0.5.0.0-0.8.0.0
@@ -15,10 +15,9 @@ Covers:     sprints 0.1.0.0 (trust loop), 0.2.0.0 (harness), 0.3.0.0 (first
             capability), 0.4.0.0 (model entry), 0.5.0.0 (attentive
             approval), 0.6.0.0 (justification abstraction), 0.7.0.0 (the
             gate, and three format changes), 0.7.1.0 (the stdio pump, and
-            the manual), each in its own section; and 0.7.5.0's clock in
-            sections 1.1, 1.3 and A22. Not yet folded in: 0.7.3.0's
-            two-writer ledger (see its review), and 0.7.2.0 and 0.7.4.0,
-            which changed no structure described here
+            the manual), 0.7.3.0 (two writers on one ledger), each in its own
+            section; and 0.7.5.0's clock in sections 1.1, 1.3 and A22.
+            0.7.2.0, 0.7.4.0 and 0.7.5.1 changed no structure described here
 Authority:  implementation level only. Where this document appears to
             conflict with the brief or a threat-model row, the brief wins
             and the conflict is a finding (FAMILY.md section 4). Settled
@@ -128,9 +127,13 @@ Four zones, and the boundaries between them are the architecture:
   constructor path, enforced by the grant issuer taking the approval decision
   object as a required argument.
 - **Everything -> ledger.** Dotted lines: every zone emits events, no zone
-  reads them back to make decisions. The ledger is write-only from the
-  pipeline's perspective; its only reader is the chain verifier and the
-  auditor (P11 - refusals are events; the ledger is the deliverable).
+  reads them back to make decisions. The pipeline reads the file in one
+  place, and not to decide anything: since 0.7.3.0 each append re-reads the
+  tail inside an exclusive lock, so it chains from what is on disk (5E). The
+  readers that do read history sit outside the loop - the chain verifier,
+  `pirx reconcile` (attempts without results, reported and never retried),
+  and the auditor (P11 - refusals are events; the ledger is the
+  deliverable).
 
 ### 1.3 Time
 
@@ -164,9 +167,15 @@ a sleep (F60; the reboot case is reproduced by A48 with an injected clock).
 
 ## 2. Types and data flow
 
-All pipeline types are frozen dataclasses. Mutability is reserved for exactly
-two places: the ledger's append cursor and the grant module's spent-set.
-Everything else is constructed once, at a zone boundary, and never modified.
+All pipeline types are frozen dataclasses. Mutable state is confined to a
+short list, each item named: the ledger file, appended under an exclusive
+lock, where what an instance remembers of the tail is a cache re-checked
+inside the lock (5E); the spend store, where a burnt nonce is a file created
+with `O_EXCL` (0.7.0.0); the issuer's per-session grant count (PT15); and the
+gate's pending and grants directories. Everything else is constructed once,
+at a zone boundary, and never modified. Through 0.6.0.0 the list had two
+items - the ledger's append cursor and an in-memory spent-set - and this
+paragraph kept saying so until 0.7.5.1.
 
 Identifier discipline: `CveId`, `VerdictId`, `TargetId`, `ActionHash`,
 `GrantNonce` are distinct `NewType` wrappers over `str`/`bytes`. This costs
@@ -180,9 +189,9 @@ The flow, with the type produced at each step:
 | parse | consumer | raw bytes | `VerdictBundle` (verdicts, review lane, notices) |
 | propose | proposer | `VerdictBundle` | `tuple[Proposal, ...]` within budget, `BudgetRefusal` event for overflow |
 | render | proposal | `Proposal` | `RenderedProposal` (canonical bytes + `ActionHash`) |
-| decide | approve | `RenderedProposal` | `ApprovalDecision` (approved / declined, with proposal age) |
-| issue | grant | `ApprovalDecision` + `RenderedProposal` | `Grant` |
-| spend | grant | `Grant` + `ActionHash` + `TargetId` | `SpentGrant` or typed refusal |
+| decide | approve | `RenderedProposal` | `ApprovalDecision` (approved / declined, with proposal age and, since 0.5.0.0, `AttentionEvidence`) |
+| issue | grant | `ApprovalDecision` + `RenderedProposal` | `Grant` (attention re-verified and the session budget counted, 0.5.0.0; MAC over the scope, 0.7.0.0) |
+| spend | grant | `Grant` + `ActionHash` + `TargetId` | `SpentGrant` or typed refusal (MAC, coverage, target, not before issuance, deadline, then a durable burn) |
 | execute | capability (0.3.0.0) | `SpentGrant` + registry entry | `ExecutionOutcome` |
 
 `SpentGrant` existing as a distinct type from `Grant` is deliberate: a
@@ -563,26 +572,35 @@ stored constructor argument, never through a shell.
 
 ```mermaid
 flowchart TD
-    IN["agent host: tools/call"] --> PARSE["parse as hostile input<br/><i>protocol.py - version enumerated (PT1)</i>"]
+    IN["agent host: one JSON-RPC frame"] --> PARSE["parse as hostile input<br/><i>protocol.py - version enumerated (PT1)</i>"]
+    PARSE -->|"malformed, or an<br/>unknown revision"| REF0["refusal.protocol,<br/>refusal.protocol_version"]
     PARSE --> HDR{"headers agree<br/>with the body?"}
     HDR -->|"no"| REF1["refusal.header_mismatch<br/><i>PT20: the body is authoritative</i>"]
-    HDR -->|"yes"| GATED{"tool in the<br/>gated registry?"}
+    HDR -->|"yes"| GATED{"a tools/call naming<br/>a gated tool?"}
     GATED -->|"no"| FWD1["forward verbatim<br/><i>gate.forwarded_ungated</i>"]
     GATED -->|"yes"| DRIFT{"definition matches<br/>the reviewed hash?"}
     DRIFT -->|"no"| REF2["refusal.tool_definition_drift<br/><i>PT16</i>"]
     DRIFT -->|"yes"| RENDER["render canonical proposal<br/><i>adapter #2</i>"]
-    RENDER --> PEND["write pending file<br/><i>gate.pending</i>"]
-    PEND --> HAS{"grant covering<br/>these bytes?"}
+    RENDER --> PEND["pending file, on first sight<br/><i>gate.pending</i>"]
+    PEND --> HAS{"grant file named by<br/>this action hash?"}
     HAS -->|"no"| TICKET["MRTR poll ticket<br/><i>gate.awaiting_approval</i>"]
-    HAS -->|"yes"| SPEND["verify MAC, coverage,<br/>target, deadline; burn nonce"]
-    SPEND --> FWD2["forward the ORIGINAL bytes<br/><i>gate.forwarded_granted</i>"]
+    HAS -->|"unparseable"| REF4["refusal.malformed_grant<br/><i>escapes handle: the pump<br/>exits 3, no reply (F65)</i>"]
+    HAS -->|"yes"| SPEND["verify MAC, coverage, target,<br/>not before issuance, deadline;<br/>burn the nonce durably"]
+    SPEND -->|"any check fails"| REF3["refusal.grant_mac, hash_mismatch,<br/>target_mismatch, grant_not_yet_valid,<br/>expired_grant, spent_grant"]
+    SPEND --> FWD2["record, then forward the ORIGINAL bytes<br/><i>gate.forwarded_granted</i>"]
 
     classDef default fill:#161b22,stroke:#7d8590,color:#e6edf3
     classDef refusal fill:#2e1a1a,stroke:#f7768e,color:#f4c1c9
     classDef pass fill:#1f2b1f,stroke:#3ddc84,color:#a9f0c6
-    class REF1,REF2 refusal
+    class REF0,REF1,REF2,REF3,REF4 refusal
     class FWD1,FWD2 pass
 ```
+
+Every refusal drawn is recorded first and answered with a JSON-RPC error,
+and nothing is forwarded on any of them - except the malformed-grant branch,
+which is drawn because the code has it: until 0.7.6.0 a grant file that does
+not parse escapes `Gate.handle`, and the pump records the refusal and ends
+the session without answering (F65).
 
 Three rules make this the design rather than an implementation detail:
 
@@ -615,6 +633,47 @@ No policy engine, no risk scoring, no rule language, no discovery, no
 inventory, no DLP, no payload inspection for injection or PII. That field is
 funded and taken. Pirx competes on the evidentiary quality of a single
 approval, and every line of scope above would dilute the only claim it has.
+
+---
+
+## 5E. Sprint 0.7.3.0 - two writers on one ledger
+
+0.7.0.0 split approval from execution and left `ledger.py` single-writer: an
+instance cached the sequence number and head hash at construction and trusted
+them for its life (3.7 describes that design, true for its sprint). The gate
+topology made it false. The pump is long-lived and appends to
+`<gate-dir>/ledger.jsonl` across a whole session, while each `pirx
+gate-approve` walk appends to the same file. The approver's records landed
+between records the pump had already chained past, so the pump's next append
+reused a sequence number and chained a superseded head, and `pirx verify`
+refused a ledger produced by the manual's own procedure (F59).
+
+The fix is the one `spendstore.py` already used: the kernel arbitrates.
+
+| Step | What happens | Why |
+|---|---|---|
+| lock | exclusive `flock` on the ledger file for the whole append | two processes, one file, one order |
+| re-read | if the file grew since this instance last looked, read the real tail inside the lock | chain from what is on disk, never from memory |
+| append | write, flush, `fsync`, then release | the record is durable before the next writer reads the tail (F24) |
+
+What the instance remembers of the tail survives as an optimisation guarded
+by a length check, so an uncontended append stays O(1).
+
+**What this buys, and what it does not.** Ordering between writers that
+share one filesystem, which is the topology Pirx ships. `flock` is advisory
+and local: a writer that ignores it, or a ledger on a networked filesystem,
+is outside the claim, and a shared or networked ledger is the first networked
+transport, which fires PT14's trigger rather than arriving quietly (PT9). The
+`fcntl` import is hard, not guarded, because a silent no-op lock on a
+platform without it would be a warning that lets execution continue (P11);
+Windows owes this with the rest of its port. Measured by
+`test_two_writers_on_one_file_keep_the_chain_intact`, killed by mutation in
+0.7.3.0.
+
+The lesson went into the merge procedure rather than into memory: a version
+that changes how many processes touch a shared artefact searches every
+document for claims naming the old count (MERGE-PROCEDURE, the topology
+step; F58-F60).
 
 ---
 
@@ -670,7 +729,7 @@ a version bump, not a discussion in a pull request.
 | A13 | Action names come from the code constant `KNOWN_INTENTS`; registry membership is checked at spend, not at proposal construction | Amends 3.3, which specified an enum over registry keys: with the registry empty (the defining property of 0.1.0.0), that enum is empty and the brief's end-to-end demonstration is unbuildable. PT2 unaffected - an action name still never derives from prose. Owed since review finding F3 |
 | A14 | The untrusted-prose fence tag is deterministic (incrementing until absent from the content), never random | Inside the hash preimage a random boundary destroys "same input, same bytes"; the approval frame stays random because it lives outside the preimage. Content is indented so no enclosed line can begin with the fence base (F18) |
 | A15 | Every ledger append flushes and fsyncs before returning | At-most-once leans on `capability.attempt` being durable before the adapter runs; a record in a page cache when the host dies never happened (F24) |
-| A16 | A16 supersedes the 4.2 cross-run sketch: an in-process spent-set is per-process and A11 documents that, rather than claiming a defence the design does not provide (F33) |
+| A16 | A16 supersedes the 4.2 cross-run sketch: through 0.6.0.0 an in-process spent-set was per-process and A11 documented that, rather than claiming a defence the design did not provide (F33). Superseded in turn at 0.7.0.0, when the durable spend store closed it and A11 was inverted to assert refusal |
 | A17 | `AttentionEvidence` is a required field of `ApprovalDecision`, measured at the approval surface and verified again at grant issuance; the session grant budget lives in the issuer | The surface is where attention is measured, not the only place it is enforced: a decision object fabricated in code cannot buy a grant without evidence (PT15). Refused issues do not consume the session budget, so refusals cannot be used to starve the approver of authority |
 | A18 | Why an action is warranted is a `Justification` produced by a source adapter; the renderer asks the justification for its own lines | A second evidence source (the gate's intercepted call, 0.7.0.0) is an addition, not a renderer rewrite. The verdict adapter renders exactly the pre-abstraction line, so `pirx.proposal/1` action hashes are unchanged - held as golden bytes, not asserted. The evidence digest is carried and deliberately *not* in the preimage: putting it there is a wire-format change and therefore a new render schema id (P8), owned by 0.7.0.0 |
 | A19 | The grant issuer is injected into `Session` and `Gate`, never constructed by them | An issuer holds a key and a durable store; a component that built its own would be deciding where authority is recorded. Injection puts that choice at the wiring site, where a reviewer sees it |

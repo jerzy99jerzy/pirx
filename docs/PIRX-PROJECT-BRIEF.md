@@ -6,7 +6,7 @@ Project brief and first-sprint specification. Self-contained: executable in a
 fresh session with no context beyond this file.
 
 ```
-Brief version:  1.11  (changelog in section 11)
+Brief version:  1.12  (changelog in section 11)
 Repository:     github.com/jerzy99jerzy/pirx
 Consumes:       cve-digest.verdict/1
 Produced by:    github.com/jerzy99jerzy/cve-digest (display codename Rappaport)
@@ -53,6 +53,7 @@ flowchart LR
     R -->|"cve-digest.verdict/1<br/>one direction, no callback"| P
     P -.->|"nothing. ever."| R
 
+    classDef default fill:#161b22,stroke:#7d8590,color:#e6edf3
     style R fill:#0e2418,stroke:#3ddc84,color:#a9f0c6
     style P fill:#1a1630,stroke:#a08cff,color:#d6ccff
 ```
@@ -228,6 +229,7 @@ flowchart TB
     PP --> L
     AP --> L
 
+    classDef default fill:#161b22,stroke:#7d8590,color:#e6edf3
     style CAP fill:#2a0e12,stroke:#ff5370,color:#ffb3c0
     style L fill:#0b1f2e,stroke:#34d0ff,color:#a9e7ff
 ```
@@ -596,6 +598,15 @@ the level of this brief:
 ---
 
 ## 11. Changelog
+
+**v1.12** - the diagrams, rendered as the rest of the documentation is.
+
+- **Both Mermaid diagrams gain the explicit `classDef default` dark
+  styling** that README and ARCHITECTURE have carried since 0.4.0.0, found
+  missing in the 0.7.5.1 review of every diagram in the tree. No content
+  change: sections 0 and 4 describe the design the 0.1.0.0 sprint was
+  specified against, and section 4's labels already name what changed after
+  it.
 
 **v1.11** - the clock the grant was said to run on.
 
