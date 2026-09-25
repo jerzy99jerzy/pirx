@@ -7,4 +7,4 @@ and answered, and the gate keeps serving; `gate-approve` records
 leaves a record without authority, never the reverse (F65).
 """
 
-__version__ = "0.7.5.1"
+__version__ = "0.7.6.0"
