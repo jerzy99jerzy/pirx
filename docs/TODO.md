@@ -1,7 +1,7 @@
 # TODO
 
 ```
-Document:  docs/TODO.md, version 2.6
+Document:  docs/TODO.md, version 2.7
 Scope:     small, non-scope-bearing work - documentation, tooling, ergonomics.
            Anything that changes what Pirx does, or accepts a risk, belongs in
            the brief's deferral table (section 9) with an owning version, not
@@ -33,15 +33,6 @@ rather than parked.
     `challenge_passed` and `floor_seconds`; `gate-approve` records neither.
     The report reads both surfaces, so the shapes align in the version that
     builds it, and the manual says so until then.
-- [ ] **0.7.6.0** F65: a grant file that does not parse ends the pump. The
-  gate reads `grants/<hash>.json` outside the refusal boundary in
-  `Gate.handle`, so `MalformedGrantRefusal` escapes to the pump, which records
-  it, exits 3, and never answers the call - through a path its own comment
-  marks unreachable. Reachable without an attacker: `gate-approve` writes
-  grant files with a plain `write_bytes`, and writes the file before
-  `grant.issued`, so a crash between the two leaves live authority with no
-  issuance record. Fixed together: the read inside the boundary, an atomic
-  write, the record before the file, a harness attack, mutants.
 - [ ] **next crossing to cve-digest** Carry PX-0003 (a `finding`): adding
   properties to a `verdict/1` object published with `additionalProperties:
   false` breaks any consumer validating against an earlier copy, which is the
@@ -89,6 +80,12 @@ went. Kept as a short list so a reader does not conclude an item was dropped.
   this document's header excludes.
 
 ## Done recently
+
+- [x] **0.7.6.0** F65: a grant file is input. The gate refuses and answers an
+  unparseable one and keeps serving; `gate-approve` records `grant.issued`
+  before writing the grant whole; harness A49-A49b; the approval walk driven
+  end to end for the first time. Six mutants, five killed; the survivor is
+  the read race, closed by construction and stated as such.
 
 - [x] **0.7.5.1** F64: rows for A44-A47c, and the catalogue and its badge
   at 61. The documents reconciled with the code in the same pass: README's

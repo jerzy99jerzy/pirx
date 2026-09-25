@@ -684,7 +684,7 @@ def test_every_catalogue_row_has_a_test() -> None:
         line for line in catalogue.splitlines()
         if line.startswith("| A") and "`test_" in line
     ]
-    assert len(rows) == 61, f"expected 61 catalogue rows, found {len(rows)}"
+    assert len(rows) == 63, f"expected 63 catalogue rows, found {len(rows)}"
 
     defined: set[str] = set()
     for module_path in here.glob("test_*.py"):

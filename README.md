@@ -5,11 +5,11 @@
 not per session.**
 
 [![gate](https://github.com/jerzy99jerzy/pirx/actions/workflows/gate.yml/badge.svg)](https://github.com/jerzy99jerzy/pirx/actions/workflows/gate.yml)
-[![version](https://img.shields.io/badge/version-0.7.5.1-7aa2f7)](https://github.com/jerzy99jerzy/pirx/releases)
+[![version](https://img.shields.io/badge/version-0.7.6.0-7aa2f7)](https://github.com/jerzy99jerzy/pirx/releases)
 [![python](https://img.shields.io/badge/python-3.14%2B-7aa2f7)](https://www.python.org/downloads/)
 [![runtime deps](https://img.shields.io/badge/runtime%20deps-0-3ddc84)](pyproject.toml)
-[![tests](https://img.shields.io/badge/tests-233-3ddc84)](tests/)
-[![hostile attacks](https://img.shields.io/badge/hostile%20attacks-61-3ddc84)](tests/harness/CATALOGUE.md)
+[![tests](https://img.shields.io/badge/tests-238-3ddc84)](tests/)
+[![hostile attacks](https://img.shields.io/badge/hostile%20attacks-63-3ddc84)](tests/harness/CATALOGUE.md)
 [![threat rows](https://img.shields.io/badge/threat%20rows-PT1--PT21-9ccfd8)](docs/THREAT-MODEL.md)
 [![capabilities registered](https://img.shields.io/badge/capabilities%20registered-1-ffb86c)](pirx/registry.py)
 [![gated tools](https://img.shields.io/badge/gated%20tools-0-ffb86c)](pirx/mcp/gate.py)
@@ -68,7 +68,7 @@ itself.
 | Approval is measurably attentive | 0.5.0.0 | A grant needs `AttentionEvidence`: a hash-selected field transcribed from the rendered bytes, an answer above a length-derived floor, a session budget. Verified at the surface and again at issuance. Demonstrates the approver operated on those bytes - never that they understood them. |
 | Evidence is a type, not a field | 0.6.0.0 | Why an action is warranted arrives as a `Justification` from a source adapter, so a second kind of evidence is an addition rather than a rewrite. The verdict path renders the same bytes it always did, held as a golden preimage. |
 
-**You are here: 0.7.5.1.** The `Since` column is the version in which a
+**You are here: 0.7.6.0.** The `Since` column is the version in which a
 property became enforced, not the version that announced it; the marker is
 pinned to `STATUS.json` by the docs audit, so it cannot drift past a bump.
 
@@ -473,6 +473,7 @@ dispositioned as fixed, accepted with reasons, or deferred.
 | 0.7.3.0 | The ledger the gate topology can verify: two writers on one file, ordered by an exclusive lock and chained from disk rather than from a cached head (F59). **Shipped.** |
 | 0.7.4.0 | The verdict consumer accepts what cve-digest actually emits (`vex_status: "none"`, KEV scores above 100.0, `epss_pending`), tested against a payload its emitter produced (F62, F63). **Shipped.** |
 | 0.7.5.0 | Grant expiry on the wall clock the design chose at 0.7.0.0 and the wiring never used: a spend clock reading before issuance is refused, one production constructor builds every issuer, and the backwards-clock residual is PT21 (F60). **Shipped.** |
+| 0.7.6.0 | A grant file is input: one that does not parse is refused and answered instead of ending the pump, and `gate-approve` records `grant.issued` before it writes the grant whole, so a crash leaves a record without authority, never the reverse (F65). **Shipped.** |
 | 0.8.0.0 | `pirx verify` report with the fatigue signal; attestation export (EU AI Act art. 14 / ISO 42001 language) |
 | 0.9.0.0 | Streamable HTTP transport for the gate, and the detached payload signature its own threat row makes due at that point |
 | 1.0.0.0 | Defined by condition, not by content: brief section 6.1 |

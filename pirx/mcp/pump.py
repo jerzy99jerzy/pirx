@@ -192,7 +192,12 @@ def pump(
             stderr.flush()
             gate.ledger.append("gate.downstream_gone", message=str(exc))
             return 74
-        except Refusal as exc:  # pragma: no cover - gate.handle catches its own
+        except Refusal as exc:
+            # `Gate.handle` answers every refusal itself; F65 closed the last
+            # path out of it (0.7.6.0). A refusal arriving here means that
+            # contract broke, so the session ends loudly and on the record
+            # rather than guessing at an answer. Exercised by a test, where it
+            # used to be excluded from coverage as unreachable.
             gate.ledger.append(exc.event, **exc.details, message=exc.message)
             return 3
 

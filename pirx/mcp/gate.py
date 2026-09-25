@@ -220,12 +220,16 @@ class Gate:
 
         Reads by filename, which is the action hash: the gate never searches
         for "a grant that might do", and a grant for another proposal is not
-        found rather than considered and rejected.
+        found rather than considered and rejected. One read and no existence
+        check, so a file removed between the two cannot raise an error past
+        the refusal boundary (F65).
         """
         path = self.grants_dir / f"{rendered.action_hash}.json"
-        if not path.exists():
+        try:
+            raw = path.read_bytes()
+        except FileNotFoundError:
             return None
-        return Grant.from_json(path.read_bytes())
+        return Grant.from_json(raw)
 
     # --- the data path ------------------------------------------------------
 
@@ -254,7 +258,14 @@ class Gate:
             return _error(request.id, -32020, exc.message)
 
         pending = self.record_pending(rendered)
-        grant = self.find_grant(rendered)
+        try:
+            grant = self.find_grant(rendered)
+        except Refusal as exc:
+            # A grant file is input from across a process boundary. One that
+            # does not parse is refused and answered like any other; before
+            # 0.7.6.0 it escaped here and ended the pump (F65).
+            self._record_refusal(exc)
+            return _error(request.id, -32020, exc.message)
         if grant is None:
             self.ledger.append(
                 "gate.awaiting_approval",

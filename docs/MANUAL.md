@@ -5,8 +5,9 @@
 > instruments. This document is the instrument panel.
 
 ```
-Document:  docs/MANUAL.md, version 2.3 (2.3: the gate's ledger trail drawn
-           as two processes, 0.7.5.1; 2.2: the grant clock, 0.7.5.0)
+Document:  docs/MANUAL.md, version 2.4 (2.4: a grant file is input,
+           0.7.6.0; 2.3: the gate's ledger trail drawn as two processes,
+           0.7.5.1; 2.2: the grant clock, 0.7.5.0)
 Audience:  the operator - the person who runs Pirx, answers its prompts, and
            is asked afterwards what happened. Assumes competence, not
            familiarity
@@ -636,6 +637,9 @@ forward leaves a record rather than silence.
 **Absence is evidence.** No `grant.issued` for a proposal means nothing was
 authorised. An action that landed on a target with no grant event in any
 ledger did not come through Pirx - which is how gate bypass becomes visible.
+On the gate path the first sentence holds since 0.7.6.0; before it, a crash
+between writing a grant and recording it could leave one spendable and
+unrecorded (F65).
 
 **`grant.spent` followed by a refusal is normal and important.** Authority is
 consumed *before* the action runs, so a crash mid-action leaves a spent grant
@@ -655,7 +659,7 @@ Nothing in the gate directory expires on its own, and that is deliberate.
 | Directory | Grows with | Safe to prune? |
 |---|---|---|
 | `pending/` | every distinct gated call | Yes, once approved or abandoned. A pending file is a rendered proposal; deleting it loses the record of what was asked |
-| `grants/` | every approval | Yes, after the grant is spent or expired. An unspent, unexpired grant is live authority - deleting it cancels it |
+| `grants/` | every approval | Yes, after the grant is spent or expired. An unspent, unexpired grant is live authority - deleting it cancels it. A hidden `.HASH.json.tmp` is an interrupted write that nothing reads; delete it |
 | `spent/` | every spent grant, forever | **No.** Each file is the durable proof that a nonce is burnt. Pruning is a replay window with a timer on it |
 | `ledger.jsonl` | every event | **No.** Truncation is undetectable by design (§8.2) |
 
@@ -794,7 +798,7 @@ calculator, which is the point.
 | `review_lane.collision` | an item appeared in both the digest and the review lane |
 | `attention.challenge_issued` | the challenge was shown, before the answer |
 | `approval.decided` | a human answered; carries attention evidence (the runner adds `challenge_passed` and `floor_seconds`, which `gate-approve` omits: F66) |
-| `grant.issued` | authority was created |
+| `grant.issued` | a grant was issued; on the gate path it is written before the grant file (0.7.6.0), so a crash between them leaves this record and no authority, never the reverse |
 | `grant.spent` | the nonce was burnt; carries the nonce alone |
 | `capability.attempt` | the action is about to run |
 | `capability.result` | the action returned |
@@ -941,12 +945,13 @@ after upgrading** - the grant was issued by 0.7.4.0 or earlier, whose
 deadlines are seconds since boot rather than since 1970. Every such grant is
 refused as expired, which is the safe direction: approve again.
 
-**The gate exits with code 3 right after `refusal.malformed_grant`** - a file
-in `grants/` that does not parse as a grant ends the pump instead of being
-answered as an error (F65, owner 0.7.6.0). `gate-approve` does not write
-grant files atomically, so an approver interrupted mid-write can leave an
-empty one. That file never held a grant that could verify: remove it,
-restart the gate, and approve the call again.
+**`refusal.malformed_grant` on every retry of one call** - a file in
+`grants/` that does not parse as a grant. Since 0.7.6.0 the gate answers it
+as an error and keeps serving; before, the pump exited with code 3 (F65).
+`gate-approve` now writes grant files whole, so its own interruption cannot
+leave one: the file came from an older version or from outside Pirx. It
+never held a grant that could verify. Remove it and approve the call again -
+the walk skips any proposal whose grant file exists, broken or not.
 
 **Tests fail with `FileNotFoundError` on a key path** - you are running a
 checkout older than 0.7.1.0. The suite has stripped Pirx's environment since.

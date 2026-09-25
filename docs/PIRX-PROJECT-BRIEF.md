@@ -6,7 +6,7 @@ Project brief and first-sprint specification. Self-contained: executable in a
 fresh session with no context beyond this file.
 
 ```
-Brief version:  1.12  (changelog in section 11)
+Brief version:  1.13  (changelog in section 11)
 Repository:     github.com/jerzy99jerzy/pirx
 Consumes:       cve-digest.verdict/1
 Produced by:    github.com/jerzy99jerzy/cve-digest (display codename Rappaport)
@@ -326,6 +326,7 @@ Numbered `PT` to avoid collision with Rappaport's `T` series.
 | 0.7.3.0 | The ledger the gate topology can verify. 0.7.0.0 split approval from execution into two processes and left `ledger.py` caching a head hash at construction, so the long-lived pump chained past every record `gate-approve` wrote and `pirx verify` refused a ledger produced by following the manual exactly (F59). Appends now take an exclusive lock and chain from disk. Carries two corrections the finding turned up: PT4's single-process claim (F60, open) and the session budget's claimed long-lived surface (F61). |
 | 0.7.4.0 | The verdict consumer accepts what the producer emits. Every version before it refused any payload carrying a CVE without a VEX statement (`vex_status: "none"`) or a KEV item scored above 100.0, which is every real run: the field table was written from this brief's prose and never tested against emitter output (F62). Adds cve-digest 0.7.18.0's `epss_pending`, rendered as `pending` rather than as a zero the approver would read as a measurement (F63), and a producer-emitted fixture carried by hand. Evidence bytes for a published score are unchanged, held as golden bytes. |
 | 0.7.5.0 | Grant expiry on the clock 0.7.0.0 chose for it. Every wiring site had kept `time.monotonic`, whose reference point CPython leaves undefined across processes, which restarts at boot, and which the platforms document as stopping while the host sleeps; a grant could outlive its TTL by the previous uptime or by the length of a sleep (F60). Deadlines move to the wall clock through one production constructor, a spend clock reading before issuance is refused, and the residual a backwards clock leaves is PT21, accepted with a trigger. Harness A48. |
+| 0.7.6.0 | A grant file is input. The gate read `grants/` outside its refusal boundary, so a file that did not parse - what `gate-approve` left if interrupted mid-write - ended the pump without an answer, and the approver wrote the grant before recording it (F65). Fixed together: the read inside the boundary, the record before the file, the file written whole, harness A49-A49b, and the first end-to-end test of the approval walk. |
 | 0.8.0.0 | `pirx verify` report including the fatigue signal derived from attention events (T8's new owner); attestation export mapping ledger evidence to EU AI Act art. 14 / ISO 42001 demonstrable-oversight language. |
 | 0.9.0.0 | Streamable HTTP transport for the gate, which is stdio-only today. Carries two things the transport forces rather than invites: the stdlib-only constraint, amended in this brief with reasons if the standard library cannot carry it honestly rather than worked around in code; and **PT14's trigger, which this version fires** - a payload crossing a network makes the detached signature a control row instead of an accepted risk. Re-homed from `docs/TODO.md` in brief v1.7, where it was scope living in a file whose own header excludes scope. |
 
@@ -598,6 +599,15 @@ the level of this brief:
 ---
 
 ## 11. Changelog
+
+**v1.13** - a grant file is input.
+
+- **0.7.6.0 gets a row**, planned in the version it ships.
+- Found by the 0.7.5.1 diagram review rather than by a test: redrawn from
+  `Gate.handle`, the gate's data path put one read outside the refusal
+  boundary the docstring promised (F65). It shipped as its own version
+  because it changes what the gate does, and the review that found it
+  changed only documents.
 
 **v1.12** - the diagrams, rendered as the rest of the documentation is.
 

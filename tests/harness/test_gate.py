@@ -394,3 +394,28 @@ def test_a42d_drift_refusal_type_is_reachable_from_the_registry() -> None:
     registry = GatedRegistry((GatedTool(tool=TOOL, definition_hash="a" * 64),))
     with pytest.raises(ToolDefinitionDriftRefusal):
         registry.require(TOOL, "b" * 64)
+
+
+# --- A49: a file at the grant path is input, not authority -----------------
+
+
+def test_a49_an_unparseable_grant_file_is_refused_and_answered(
+    tmp_path: Path,
+) -> None:
+    """PT1. The grant path is read from disk, so what sits there is input from
+    across a process boundary. An empty file - what an interrupted write left
+    before 0.7.6.0 - is refused as `refusal.malformed_grant`, answered as a
+    JSON-RPC error, and nothing is forwarded. It used to escape `Gate.handle`
+    and end the session (F65)."""
+    clock = FakeClock()
+    gate, forwarded = build(tmp_path, clock)
+    gate.handle(call())
+    rendered = gate.proposal_for(parse_request(call()))
+    gate.grants_dir.mkdir(parents=True, exist_ok=True)
+    (gate.grants_dir / f"{rendered.action_hash}.json").write_bytes(b"")
+
+    reply = json.loads(gate.handle(call()))
+
+    assert "error" in reply
+    assert forwarded == []
+    assert "refusal.malformed_grant" in events(tmp_path)
