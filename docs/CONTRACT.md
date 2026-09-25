@@ -1,14 +1,17 @@
 # Contract: `cve-digest.verdict/1`
 
 ```
-Document:  docs/CONTRACT.md, version 1.1 (0.7.4.0; 1.0 shipped with 0.1.0.0)
+Document:  docs/CONTRACT.md, version 1.2 (0.7.5.1; 1.1 with 0.7.4.0; 1.0
+           shipped with 0.1.0.0)
 Source:    cve-digest's published schema, docs/schema/cve-digest.verdict-1.json,
            read at 786efcd (0.7.18.0), and a payload its emitter produced.
            Version 1.0 was written from PIRX-PROJECT-BRIEF.md v1.2's prose,
            which is how it disagreed with the producer for seven weeks (F62)
 Owner:     Pirx owns THIS document and the compatibility matrix below, as
-           the consumer (FAMILY.md 3.4). Rappaport owns the schema itself
-           and keeps a plain-prose consumers note pointing here.
+           the consumer (FAMILY.md 3.4). Rappaport owns the schema itself.
+           FAMILY.md 3.4 also gives it a plain-prose consumers note pointing
+           here; at 786efcd there is none, and it belongs to cve-digest's
+           FAMILY.md adoption (1.1 said it was there)
 ```
 
 ## Envelope

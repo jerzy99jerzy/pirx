@@ -1,7 +1,7 @@
 # TODO
 
 ```
-Document:  docs/TODO.md, version 2.5
+Document:  docs/TODO.md, version 2.6
 Scope:     small, non-scope-bearing work - documentation, tooling, ergonomics.
            Anything that changes what Pirx does, or accepts a risk, belongs in
            the brief's deferral table (section 9) with an owning version, not
@@ -29,22 +29,33 @@ rather than parked.
     90.4 against a floor of 3.7. That number measures presence at the
     terminal, not attention, so the signal has to be built on the lower tail
     and the shape of the distribution, never on raw elapsed values.
-- [ ] **next docs PR** `tests/harness/CATALOGUE.md` has no rows for A44-A47c,
-  the ten pump attacks in `test_pump.py`, so "one row per attack" and the
-  README's attack badge both undercount. Found reading the catalogue for A48;
-  not fixed in 0.7.5.0 because it moves a public count for a reason unrelated
-  to the clock.
+  - F66: `approval.decided` has two shapes. The runner records
+    `challenge_passed` and `floor_seconds`; `gate-approve` records neither.
+    The report reads both surfaces, so the shapes align in the version that
+    builds it, and the manual says so until then.
+- [ ] **0.7.6.0** F65: a grant file that does not parse ends the pump. The
+  gate reads `grants/<hash>.json` outside the refusal boundary in
+  `Gate.handle`, so `MalformedGrantRefusal` escapes to the pump, which records
+  it, exits 3, and never answers the call - through a path its own comment
+  marks unreachable. Reachable without an attacker: `gate-approve` writes
+  grant files with a plain `write_bytes`, and writes the file before
+  `grant.issued`, so a crash between the two leaves live authority with no
+  issuance record. Fixed together: the read inside the boundary, an atomic
+  write, the record before the file, a harness attack, mutants.
 - [ ] **next crossing to cve-digest** Carry PX-0003 (a `finding`): adding
   properties to a `verdict/1` object published with `additionalProperties:
   false` breaks any consumer validating against an earlier copy, which is the
   schema's own stated test for breaking. Pirx is unaffected by construction;
-  the question belongs to the producer. Travels with the PX-0001 mirror that
-  is already written and waiting outside the tree.
+  the question belongs to the producer. Travels with PX-0002 and the PX-0001
+  mirror, which is already written and waiting outside the tree. At 786efcd
+  cve-digest also has no consumers note pointing at `docs/CONTRACT.md`
+  (FAMILY.md 3.4); that belongs to its FAMILY.md adoption, not to this
+  crossing.
 - [~] **exchange entry PX-0001** Pirx side done, second pass 2026-09-24:
   items 2, 4, 5, and 6 resolved. Items 1 and 3 still need cve-digest's answer,
   and the mirror never landed - cve-digest has no `docs/exchange/` at 0.7.18.0.
-  Owner of the rest: the landing of cve-digest's `docs/exchange/`, which the
-  FAMILY.md landing after its 0.8.0.0 gate forces (PX-0002).
+  Owner of the rest: the next crossing to cve-digest, which creates its
+  `docs/exchange/` ahead of the FAMILY.md landing rather than with it.
 - [ ] **first version running the gate on Windows** The Windows identity
   launcher. Research is done and shipped as `docs/IDENTITY-WINDOWS.md`; the
   code is deliberately not written ahead of it, because the research
@@ -78,6 +89,13 @@ went. Kept as a short list so a reader does not conclude an item was dropped.
   this document's header excludes.
 
 ## Done recently
+
+- [x] **0.7.5.1** F64: rows for A44-A47c, and the catalogue and its badge
+  at 61. The documents reconciled with the code in the same pass: README's
+  measured claims, harness counts, and deferral list; ARCHITECTURE 2.4 with
+  the two-writer ledger (5E); THREAT-MODEL 1.1 (header, PT8, PT10);
+  MERGE-PROCEDURE 1.2; CONTRACT 1.2; MANUAL 2.3; every Mermaid diagram
+  checked against the path it draws.
 
 - [x] **0.7.5.0** F60: grant deadlines on the wall clock through one
   production constructor, a spend clock reading before issuance refused

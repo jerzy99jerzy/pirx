@@ -1,13 +1,21 @@
 # Merge procedure
 
 ```
-Document:  docs/MERGE-PROCEDURE.md, version 1.1
+Document:  docs/MERGE-PROCEDURE.md, version 1.2
 Scope:     this repository only. If any of this should become a family
            convention, it travels to cve-digest as a convention-amendment
            exchange entry (FAMILY.md 3.2). cve-digest's WORKFLOW.md is not
            vendored here (brief section 8), and this document is not
            vendored there.
 ```
+
+Changes in 1.2: `gh pr create --fill-first`, because `--fill` titles a PR
+with more than one commit from its branch name; tags annotated on the merged
+bump commit's full hash, each step in its own block, as `v0.7.5.0` was made;
+a section for applying a patch series produced outside this clone, with the
+tree-hash check; and values written literally or as variables, because
+`<n>` in a command block is a redirection in zsh, which made 1.1's
+"zsh-safe" untrue in two blocks.
 
 Changes in 1.1: the required-checks row names all four contexts the
 protection actually requires; the local gate is described as it runs; a
@@ -35,8 +43,21 @@ configurable security limit (P6) refuses an admin bypass.
 
 ## The procedure
 
+Two values are set once per session and read by every block below except the
+tag commands, which take no variable (see "Tags and rebase merges"). The
+values here are examples:
+
 ```
-git checkout -b feat/<name>
+BRANCH=docs/reconcile-0.7.5.1
+VERSION=0.7.5.1
+```
+
+Branch from the remote's `main`, never from a local `main` that may be
+behind:
+
+```
+git fetch origin
+git checkout -b "$BRANCH" origin/main
 ```
 
 Work, then run the local gate before pushing anything:
@@ -65,21 +86,29 @@ carry the version change itself** - `pyproject.toml`, `pirx/__init__.py`,
 `STATUS.json` - and nothing else. An empty marker commit does not survive a
 rebase merge, which discards empty commits, and the tag then lands on a
 feature commit (review finding F17). So the feature commit leaves those three
-files at the previous version:
+files at the previous version.
+
+**Pins.** `STATUS.json` pins the versions the brief, ARCHITECTURE, and
+FAMILY.md declare, and the pins move in the bump commit with the version.
+README's position marker and badges, and the docstring of
+`pirx/__init__.py`, move in the feature commit. The feature commit alone
+therefore fails the docs audit on those pins; that is expected, because CI
+and the local gate both check the head.
 
 Stage the feature with an explicit file list - never `git add -A` or
-`git add .`, and not the version fields:
+`git add .`, and not the version fields. The list and message below are
+examples:
 
 ```
-git add <explicit file list>
-git commit -m "feat: ..."
+git add README.md docs/TODO.md
+git commit -m "docs: what changed, and why"
 ```
 
 Then the bump, as a commit whose entire diff is the version:
 
 ```
 git add pyproject.toml pirx/__init__.py STATUS.json
-git commit -m "chore: version 0.N.0.0"
+git commit -m "chore: version $VERSION"
 ```
 
 Confirm what is about to leave, separately from pushing it (P13):
@@ -89,7 +118,7 @@ git log --oneline --stat origin/main..HEAD
 ```
 
 ```
-git push -u origin feat/<name>
+git push -u origin "$BRANCH"
 ```
 
 Open the PR, then watch the checks **as a separate command**. Chaining them
@@ -98,12 +127,18 @@ yet, `--watch` returns immediately with nothing to watch, and the next command
 in the chain hits a PR that is not yet mergeable (observed on PR #3).
 
 ```
-gh pr create --fill --base main
+gh pr create --fill-first --base main
 ```
+
+`--fill-first` takes the title and body from the first commit, which is the
+feature commit; `--fill` would title a two-commit PR from its branch name.
 
 ```
 gh pr checks --watch
 ```
+
+Right after creation this can report no checks at all. Wait and run it
+again; "nothing to watch" is not green.
 
 If a merge is refused as not-yet-mergeable, the right answer is to wait or to
 queue it:
@@ -151,34 +186,88 @@ gh pr checks --watch
 gh pr merge --rebase --delete-branch --auto
 ```
 
-Finally, sync local `main` and push the tag, which does not travel with the
-merge:
+Then tag, as the last section describes: a tag does not travel with the
+merge.
+
+## Applying a patch series produced outside this clone
+
+A version prepared elsewhere - a review container, a second machine -
+arrives as `git format-patch` files named for this repository and the
+version, `pirx-0.7.5.1-1-feature.patch` and `pirx-0.7.5.1-2-bump.patch`,
+never with the bare `0001-` prefix: a downloads directory holding series
+from two repositories collides on it.
 
 ```
-git checkout main && git pull
-git push origin v0.N.0.0
+ls ~/Downloads | grep "pirx-$VERSION"
 ```
+
+Exactly two lines, or stop. Branch from the remote's `main` as above, then
+apply:
+
+```
+git am ~/Downloads/pirx-$VERSION-1-feature.patch ~/Downloads/pirx-$VERSION-2-bump.patch
+```
+
+Check the transfer separately (P13):
+
+```
+git log -2 --format='%h %an <%ae> | %s'
+git rev-parse 'HEAD~1^{tree}' 'HEAD^{tree}'
+```
+
+The author must be the maintainer, because `git am` keeps whoever produced
+the patch. The two tree hashes must equal the ones the producer reported.
+Commit hashes never match across a transfer - `git am` and the rebase merge
+each rewrite the committer - while a tree hash covers every byte of the tree
+and survives both, so it is the comparison that shows the tree landed
+intact. On 0.7.5.0 they matched at every hop, from the producing container
+to the pushed branch to `main`. If `git am` stops, run `git am --abort` and
+ask for a series regenerated against the current `origin/main`; do not reach
+for `--3way` first.
 
 ## Tags and rebase merges
 
-A rebase merge rewrites commit SHAs. A tag created on the branch before the
-merge therefore points at a commit that is **not** on `main`. Two honest
-options, and this repository takes the second:
-
-1. Tag on the branch, accept that the tag names a pre-rebase commit.
-2. **Tag after merging**, on the merged `main`, so `v0.N.0.0` names a commit
-   that is actually in the mainline history.
-
-So the tag step above moves to the end of the procedure:
+A rebase merge rewrites commit SHAs, so a tag created on the branch points
+at a commit that is **not** on `main`. Tags are therefore created after the
+merge, on the merged bump commit, **annotated**, and named by that commit's
+full hash typed into the command - never through a variable or `$(...)`,
+which carries a value across a paste boundary where nobody sees it.
+cve-digest's WORKFLOW section 7 holds the same rule. Each step is its own
+block (P13):
 
 ```
-git checkout main && git pull
-git tag v0.N.0.0 && git push origin v0.N.0.0
+git checkout main
+git pull --ff-only origin main
 ```
 
-Verify the tag points where you think it does - separately from creating it,
-per P13:
+```
+git log -3 --format='%H %s'
+```
+
+The top line must be `chore: version 0.7.5.1` for the version being tagged.
+Copy its full hash into the next block by hand, replacing
+`BUMP_COMMIT_FULL_HASH`, which git refuses if it is pasted unedited:
 
 ```
-git log --oneline -1 v0.N.0.0
+git tag -a v0.7.5.1 -m "v0.7.5.1: one line on what the version is" BUMP_COMMIT_FULL_HASH
 ```
+
+```
+git cat-file -t v0.7.5.1
+git log -1 --format='%H %s' v0.7.5.1
+```
+
+Expected: `tag`, then the bump commit's hash and subject. Only then push it:
+
+```
+git push origin v0.7.5.1
+```
+
+```
+git ls-remote --tags origin 'v0.7.5.1*'
+```
+
+The `^{}` line must carry the bump commit's hash: it is the commit the
+annotated tag points at. The version in these blocks is written literally on
+purpose; it is an example, and tag commands are the one place in this
+procedure that takes no variable.
