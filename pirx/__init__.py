@@ -8,4 +8,4 @@ ARCHITECTURE, every diagram checked against the path it draws. Behaviour is
 before the grant was issued is refused.
 """
 
-__version__ = "0.7.5.0"
+__version__ = "0.7.5.1"
