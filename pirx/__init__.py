@@ -8,4 +8,4 @@ is input, and `gate-approve` records `grant.issued` before it writes the
 grant whole (F65).
 """
 
-__version__ = "0.7.6.0"
+__version__ = "0.7.6.1"
