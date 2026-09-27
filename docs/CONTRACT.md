@@ -1,8 +1,8 @@
 # Contract: `cve-digest.verdict/1`
 
 ```
-Document:  docs/CONTRACT.md, version 1.2 (0.7.5.1; 1.1 with 0.7.4.0; 1.0
-           shipped with 0.1.0.0)
+Document:  docs/CONTRACT.md, version 1.3 (0.7.6.1; 1.2 with 0.7.5.1; 1.1
+           with 0.7.4.0; 1.0 shipped with 0.1.0.0)
 Source:    cve-digest's published schema, docs/schema/cve-digest.verdict-1.json,
            read at 786efcd (0.7.18.0), and a payload its emitter produced.
            Version 1.0 was written from PIRX-PROJECT-BRIEF.md v1.2's prose,
@@ -10,8 +10,8 @@ Source:    cve-digest's published schema, docs/schema/cve-digest.verdict-1.json,
 Owner:     Pirx owns THIS document and the compatibility matrix below, as
            the consumer (FAMILY.md 3.4). Rappaport owns the schema itself.
            FAMILY.md 3.4 also gives it a plain-prose consumers note pointing
-           here; at 786efcd there is none, and it belongs to cve-digest's
-           FAMILY.md adoption (1.1 said it was there)
+           here. There is none at cve-digest 0.7.18.1, whose TODO.md owns it
+           with the FAMILY.md landing (1.1 said it was there)
 ```
 
 ## Envelope
@@ -58,7 +58,11 @@ Owner:     Pirx owns THIS document and the compatibility matrix below, as
    producer adds optional fields under `verdict/1` (`tickets`,
    `epss_percentile`) and relies on consumers skipping them; a test pins that
    tolerance so it cannot be lost by accident. Ignoring a field is not
-   reading it: nothing here trusts or displays one.
+   reading it: nothing here trusts or displays one. At cve-digest 0.7.18.1
+   the producer accepted PX-0003 as option 1: a consumer must ignore
+   properties it does not know, raised from the "should" its README has
+   stated since 2026-08-06. The schema and README edits that state the
+   "must" are owned in its `TODO.md`.
 5. **The contract is tested against the producer's output, not a description
    of it.** `tests/fixtures/verdict-1.cve-digest-0.7.18.0.json` was emitted by
    cve-digest's own `build_verdicts` and carried into this tree by hand. When

@@ -1,10 +1,11 @@
 """Pirx: a write-capable remediation agent whose authority is granted per
 action, not per session.
 
-Version 0.7.6.0: a grant file is input. One that does not parse is refused
-and answered, and the gate keeps serving; `gate-approve` records
-`grant.issued` before it writes the grant, and writes it whole, so a crash
-leaves a record without authority, never the reverse (F65).
+Version 0.7.6.1: documentation only. The cve-digest crossing is recorded on
+this side: PX-0002 and PX-0003 carried and accepted at cve-digest 0.7.18.1,
+PX-0001 closed with its mirror landed. Behaviour is 0.7.6.0's: a grant file
+is input, and `gate-approve` records `grant.issued` before it writes the
+grant whole (F65).
 """
 
 __version__ = "0.7.6.0"
