@@ -1,7 +1,7 @@
 # TODO
 
 ```
-Document:  docs/TODO.md, version 2.7
+Document:  docs/TODO.md, version 2.8
 Scope:     small, non-scope-bearing work - documentation, tooling, ergonomics.
            Anything that changes what Pirx does, or accepts a risk, belongs in
            the brief's deferral table (section 9) with an owning version, not
@@ -33,20 +33,6 @@ rather than parked.
     `challenge_passed` and `floor_seconds`; `gate-approve` records neither.
     The report reads both surfaces, so the shapes align in the version that
     builds it, and the manual says so until then.
-- [ ] **next crossing to cve-digest** Carry PX-0003 (a `finding`): adding
-  properties to a `verdict/1` object published with `additionalProperties:
-  false` breaks any consumer validating against an earlier copy, which is the
-  schema's own stated test for breaking. Pirx is unaffected by construction;
-  the question belongs to the producer. Travels with PX-0002 and the PX-0001
-  mirror, which is already written and waiting outside the tree. At 786efcd
-  cve-digest also has no consumers note pointing at `docs/CONTRACT.md`
-  (FAMILY.md 3.4); that belongs to its FAMILY.md adoption, not to this
-  crossing.
-- [~] **exchange entry PX-0001** Pirx side done, second pass 2026-09-24:
-  items 2, 4, 5, and 6 resolved. Items 1 and 3 still need cve-digest's answer,
-  and the mirror never landed - cve-digest has no `docs/exchange/` at 0.7.18.0.
-  Owner of the rest: the next crossing to cve-digest, which creates its
-  `docs/exchange/` ahead of the FAMILY.md landing rather than with it.
 - [ ] **first version running the gate on Windows** The Windows identity
   launcher. Research is done and shipped as `docs/IDENTITY-WINDOWS.md`; the
   code is deliberately not written ahead of it, because the research
@@ -69,6 +55,19 @@ the commitment: it is what makes these deferrals rather than intentions.
   the pending queue and the spend store. Neither expires anything on its own
   today, and that is deliberate: an automatic prune of a spend record is a
   replay window with a timer on it.
+- [ ] **the next FAMILY.md amendment, for any reason** Two things to carry
+  with it or drop with a reason. The B2 named-trigger amendment
+  `docs/PIRX-GATE-DESIGN.md` records as travelling to FAMILY's canonical
+  home: B2 is defined nowhere in this tree, so the session starts by finding
+  what it names. And FAMILY.md 3.3 saying that an entry's `origin:` line is
+  written once, and names a version the tree declared: PX-0001's read
+  0.7.0.1, a version never declared (the tree went from 0.7.0.0 to 0.7.0.2),
+  and moved to 0.7.2.2 in the carry commit.
+- [ ] **the next version that changes `pirx/consumer.py`** Pin the
+  payload-level half of the unknown-key tolerance. `consumer.parse` reads
+  top-level keys with `.get`, so an unknown key beside `verdicts` is ignored
+  by construction, but only the verdict-level half has a test. cve-digest's
+  accepted PX-0003 rule covers the whole payload.
 
 ## Moved out
 
@@ -80,6 +79,14 @@ went. Kept as a short list so a reader does not conclude an item was dropped.
   this document's header excludes.
 
 ## Done recently
+
+- [x] **0.7.6.1** The cve-digest crossing. Mirrors of PX-0001, PX-0002 and
+  PX-0003 landed in cve-digest 0.7.18.1 (tag `v0.7.18.1`): PX-0001 applied,
+  PX-0002 accepted with `docs/exchange/` landing ahead of FAMILY.md, PX-0003
+  accepted as option 1. The consumers note FAMILY.md 3.4 asks the producer
+  for is owned by cve-digest's `TODO.md`, with the FAMILY.md landing.
+  MERGE-PROCEDURE 1.3 lists `*.patch` in the transfer check and says what a
+  second paste of the tag block does.
 
 - [x] **0.7.6.0** F65: a grant file is input. The gate refuses and answers an
   unparseable one and keeps serving; `gate-approve` records `grant.issued`

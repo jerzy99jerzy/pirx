@@ -1,13 +1,18 @@
 # Merge procedure
 
 ```
-Document:  docs/MERGE-PROCEDURE.md, version 1.2
+Document:  docs/MERGE-PROCEDURE.md, version 1.3
 Scope:     this repository only. If any of this should become a family
            convention, it travels to cve-digest as a convention-amendment
            exchange entry (FAMILY.md 3.2). cve-digest's WORKFLOW.md is not
            vendored here (brief section 8), and this document is not
            vendored there.
 ```
+
+Changes in 1.3: the transfer check lists `*.patch` files instead of
+grepping the version prefix, which on the cve-digest 0.7.18.1 crossing also
+matched two review diffs lying beside the pair; and the tag block says what a
+second paste of it does.
 
 Changes in 1.2: `gh pr create --fill-first`, because `--fill` titles a PR
 with more than one commit from its branch name; tags annotated on the merged
@@ -198,10 +203,13 @@ never with the bare `0001-` prefix: a downloads directory holding series
 from two repositories collides on it.
 
 ```
-ls ~/Downloads | grep "pirx-$VERSION"
+ls -1 ~/Downloads/pirx-$VERSION-*.patch
 ```
 
-Exactly two lines, or stop. Branch from the remote's `main` as above, then
+Exactly two lines, or stop. The listing names `*.patch` files only: a grep
+on the version prefix also matches anything else named for the version, and
+on the cve-digest 0.7.18.1 crossing it listed two review diffs beside the
+pair. Branch from the remote's `main` as above, then
 apply:
 
 ```
@@ -251,6 +259,12 @@ Copy its full hash into the next block by hand, replacing
 ```
 git tag -a v0.7.5.1 -m "v0.7.5.1: one line on what the version is" BUMP_COMMIT_FULL_HASH
 ```
+
+A second paste of that block fails loudly, `fatal: tag 'v0.7.5.1' already
+exists`, and leaves the tag as it was; a second push of the tag reports
+`Everything up-to-date`. Both were measured on `v0.7.6.0`, the push again on
+2026-09-27. The end state is the first paste's either way, and neither
+message says whether the tag is right; the checks below do.
 
 ```
 git cat-file -t v0.7.5.1
