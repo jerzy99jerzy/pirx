@@ -1,0 +1,414 @@
+/* The page for docs/MANUAL.md, written by tools/build_site.py.
+
+   One stylesheet and no web font: the page loads nothing from any origin but
+   its own. The band carries the README's banner, on the banner's own edge
+   colour (#0d1117) in both schemes so the two meet without a seam, and takes
+   its other colours from the banner's palette: the block letters, the
+   subtitle, and the amber of the status LED (#ffb048), close to the
+   #ffb86c the manual's diagrams use for the human. The reading column stays plain, because this is a manual
+   someone consults while a call is held for them. The diagrams are drawn
+   dark and shown on the same edge colour in both schemes, as a panel. Every
+   text and background pair below clears WCAG AA, most of them AAA, and
+   tests/test_site.py measures it. Ported from cve-digest's stylesheet. */
+
+:root {
+  color-scheme: light dark;
+  --paper: #f7f9fb;
+  --ink: #18212c;
+  --muted: #566476;
+  --rule: #d6dde5;
+  --code: #e9eef3;
+  --link: #0a6378;
+  --band: #0d1117;
+  --band-ink: #cdd9e5;
+  --band-muted: #788ca5;
+  --signal: #ffb048;
+  --serif: Charter, "Bitstream Charter", "Sitka Text", Cambria, "Iowan Old Style", Georgia, serif;
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", "JetBrains Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
+  --text: 40rem;
+  --column: 54rem;
+  --wide: 76rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #0f1620;
+    --ink: #d8e2ec;
+    --muted: #94a5b7;
+    --rule: #253344;
+    --code: #172332;
+    --link: #6fd2e6;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 1.0625rem/1.65 var(--serif);
+  font-kerning: normal;
+}
+
+a {
+  color: var(--link);
+  text-decoration-thickness: 0.06em;
+  text-underline-offset: 0.18em;
+}
+
+a:hover {
+  text-decoration-thickness: 0.12em;
+}
+
+:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
+}
+
+.skip {
+  position: absolute;
+  top: -4rem;
+  left: 1rem;
+  z-index: 1;
+  padding: 0.5rem 0.75rem;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.skip:focus {
+  top: 1rem;
+}
+
+/* The band: the one place the project's own colours appear. */
+
+.band {
+  background: var(--band);
+  color: var(--band-ink);
+  border-bottom: 2px solid var(--signal);
+}
+
+.band-inner {
+  max-width: var(--wide);
+  margin: 0 auto;
+  padding: 2rem 1.5rem 1.75rem;
+}
+
+/* The banner is the header's one image and its one moving thing. With
+   reduced motion the <picture> swaps in the first frame as a still. */
+
+.banner,
+.banner img {
+  display: block;
+}
+
+.banner {
+  margin: 0 0 1.4rem;
+}
+
+.banner img {
+  max-width: 100%;
+  height: auto;
+}
+
+.band a {
+  color: var(--band-ink);
+}
+
+.band :focus-visible {
+  outline-color: var(--signal);
+}
+
+.provenance {
+  margin: 0;
+  color: var(--band-muted);
+  font-size: 0.95rem;
+}
+
+.band h1 {
+  margin: 0 0 0.45rem;
+  font-size: clamp(1.75rem, 4.2vw, 2.6rem);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+
+.band code {
+  padding: 0;
+  background: none;
+  color: var(--signal);
+}
+
+/* Contents beside the manual on a wide screen, above it on a narrow one. */
+
+.frame {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2rem;
+  max-width: var(--wide);
+  margin: 0 auto;
+  padding: 2rem 1.5rem 3.5rem;
+}
+
+@media (min-width: 64rem) {
+  .frame {
+    grid-template-columns: 15rem minmax(0, var(--column));
+    gap: 3.5rem;
+  }
+
+  .toc {
+    position: sticky;
+    top: 1.5rem;
+    align-self: start;
+    max-height: calc(100vh - 3rem);
+    overflow-y: auto;
+  }
+}
+
+.toc {
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.toc summary {
+  padding: 0.25rem 0 0.5rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.toc ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.toc li {
+  margin: 0.3rem 0;
+}
+
+.toc ul ul {
+  margin: 0.35rem 0 0.5rem;
+  padding-left: 0.9rem;
+  border-left: 1px solid var(--rule);
+}
+
+.toc a {
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.toc a:hover {
+  color: var(--link);
+  text-decoration: underline;
+}
+
+/* The manual. */
+
+.manual {
+  min-width: 0;
+}
+
+.manual:focus {
+  outline: none;
+}
+
+.manual > :first-child {
+  margin-top: 0;
+}
+
+.manual > :is(p, ul, ol, blockquote) {
+  max-width: var(--text);
+}
+
+.manual h2 {
+  margin: 2.75rem 0 0.9rem;
+  font-size: 1.6rem;
+  line-height: 1.25;
+}
+
+.manual h3 {
+  margin: 2rem 0 0.6rem;
+  font-size: 1.25rem;
+  line-height: 1.3;
+}
+
+.manual :is(h2, h3) {
+  scroll-margin-top: 1rem;
+}
+
+.self {
+  color: inherit;
+  text-decoration: none;
+}
+
+.self::after {
+  content: "#";
+  content: "#" / "";
+  margin-left: 0.4em;
+  color: var(--muted);
+  opacity: 0;
+}
+
+.self:hover::after,
+.self:focus-visible::after {
+  opacity: 1;
+}
+
+hr {
+  margin: 2.5rem 0;
+  border: 0;
+  border-top: 1px solid var(--rule);
+}
+
+code {
+  padding: 0.1em 0.32em;
+  border-radius: 3px;
+  background: var(--code);
+  font-family: var(--mono);
+  font-size: 0.86em;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+pre {
+  overflow-x: auto;
+  padding: 0.9rem 1rem;
+  border-radius: 4px;
+  background: var(--code);
+  font-family: var(--mono);
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+pre code {
+  padding: 0;
+  background: none;
+  font-size: inherit;
+}
+
+/* A diagram: a drawing made from the Mermaid block it replaces, linked to
+   itself at full size, with the block beneath it for a reader who wants the
+   text. */
+
+.diagram {
+  margin: 1.5rem 0;
+}
+
+.diagram-art {
+  display: block;
+  overflow-x: auto;
+  padding: 0.75rem;
+  border-radius: 4px;
+  background: var(--band);
+}
+
+/* Shrunk to the column on a wide screen; on a narrow one it stops at a width
+   its labels can still be read at and scrolls instead (min-width wins over
+   max-width). */
+
+.diagram-art img {
+  display: block;
+  min-width: 40rem;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+
+.diagram details {
+  margin-top: 0.4rem;
+  font-size: 0.9rem;
+}
+
+.diagram summary {
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.table-wrap {
+  overflow-x: auto;
+  margin: 1.25rem 0;
+}
+
+table {
+  min-width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+th,
+td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--rule);
+  text-align: left;
+  vertical-align: top;
+}
+
+th {
+  border-bottom-width: 2px;
+}
+
+.foot {
+  border-top: 1px solid var(--rule);
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.foot-inner {
+  max-width: var(--wide);
+  margin: 0 auto;
+  padding: 1.5rem 1.5rem 2.5rem;
+}
+
+.foot p {
+  max-width: var(--text);
+  margin: 0;
+}
+
+@media print {
+  .band {
+    background: none;
+    color: #000;
+    border-bottom: 1px solid #000;
+  }
+
+  .band a,
+  .band code,
+  .provenance {
+    color: #000;
+  }
+
+  .toc,
+  .skip,
+  .banner {
+    display: none;
+  }
+
+  .frame {
+    display: block;
+    padding: 0;
+  }
+
+  pre,
+  .table-wrap {
+    overflow: visible;
+  }
+
+  .diagram details {
+    display: none;
+  }
+
+  pre {
+    white-space: pre-wrap;
+  }
+}

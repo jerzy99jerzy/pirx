@@ -1,7 +1,7 @@
 # TODO
 
 ```
-Document:  docs/TODO.md, version 2.8
+Document:  docs/TODO.md, version 2.9
 Scope:     small, non-scope-bearing work - documentation, tooling, ergonomics.
            Anything that changes what Pirx does, or accepts a risk, belongs in
            the brief's deferral table (section 9) with an owning version, not
@@ -39,6 +39,13 @@ rather than parked.
   established that the macOS strength claim does not transfer and an artefact
   written first would have carried a README promising it (PT19).
 
+- [ ] **the first version after the first Pages deployment** Record the
+  repository settings `docs/MERGE-PROCEDURE.md` reads back for the manual's
+  page (Pages source, the `github-pages` branch rule, the site address), with
+  the date and the first `pages` run, replacing its "not yet read back" line.
+  The procedure exists from 0.7.6.2; the values cannot be recorded before the
+  owner runs it.
+
 ### Trigger-owned
 
 Open items whose owner is a condition rather than a version. The condition is
@@ -63,6 +70,11 @@ the commitment: it is what makes these deferrals rather than intentions.
   written once, and names a version the tree declared: PX-0001's read
   0.7.0.1, a version never declared (the tree went from 0.7.0.0 to 0.7.0.2),
   and moved to 0.7.2.2 in the carry commit.
+- [ ] **the next change to `requirements-docs.txt`** Recompute the hashes
+  from downloads, as 0.7.6.2 did, and read the new versions against advisory
+  data by hand before the change lands. Nothing audits those pins
+  automatically, unlike cve-digest's, and PT22 accepts that; the hand check
+  at each change is what the acceptance assumes.
 - [ ] **the next version that changes `pirx/consumer.py`** Pin the
   payload-level half of the unknown-key tolerance. `consumer.parse` reads
   top-level keys with `.get`, so an unknown key beside `verdicts` is ignored
@@ -79,6 +91,15 @@ went. Kept as a short list so a reader does not conclude an item was dropped.
   this document's header excludes.
 
 ## Done recently
+
+- [x] **0.7.6.2** The manual has a page: `docs/MANUAL.md` rendered by
+  `tools/build_site.py` and published by `.github/workflows/pages.yml`, ported
+  from cve-digest 0.7.19.4/0.7.19.5. The three diagrams are drawings named for
+  their source's hash, refused when missing or when they fail the
+  allowlist and value checks an independent review led to. PT22 written
+  with the workflow; MERGE-PROCEDURE 1.4 holds the settings procedure.
+  Twenty-nine mutants in three rounds; twenty-eight killed, the survivor an
+  equivalent mutant whose dead clause was removed.
 
 - [x] **0.7.6.1** The cve-digest crossing. Mirrors of PX-0001, PX-0002 and
   PX-0003 landed in cve-digest 0.7.18.1 (tag `v0.7.18.1`): PX-0001 applied,

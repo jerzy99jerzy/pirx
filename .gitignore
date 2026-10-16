@@ -8,3 +8,6 @@ __pycache__/
 .venv/
 
 *.egg-info/
+
+# the site tools/build_site.py writes by default; the pages workflow builds its own
+/_site/
