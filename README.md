@@ -4,8 +4,16 @@
 **A write-capable remediation agent whose authority is granted per action,
 not per session.**
 
+> **Operator manual: [jerzy99jerzy.github.io/pirx](https://jerzy99jerzy.github.io/pirx/)**
+>
+> How to install and run Pirx, what to do at an approval prompt, how to read
+> the ledger, and every refusal with what it means. The page is a copy of
+> [`docs/MANUAL.md`](docs/MANUAL.md), rebuilt whenever the manual or its
+> builder changes on `main`.
+
+[![operator manual](https://img.shields.io/badge/operator%20manual-read%20online-7aa2f7)](https://jerzy99jerzy.github.io/pirx/)
 [![gate](https://github.com/jerzy99jerzy/pirx/actions/workflows/gate.yml/badge.svg)](https://github.com/jerzy99jerzy/pirx/actions/workflows/gate.yml)
-[![version](https://img.shields.io/badge/version-0.7.6.2-7aa2f7)](https://github.com/jerzy99jerzy/pirx/releases)
+[![version](https://img.shields.io/badge/version-0.7.6.3-7aa2f7)](https://github.com/jerzy99jerzy/pirx/releases)
 [![python](https://img.shields.io/badge/python-3.14%2B-7aa2f7)](https://www.python.org/downloads/)
 [![runtime deps](https://img.shields.io/badge/runtime%20deps-0-3ddc84)](pyproject.toml)
 [![tests](https://img.shields.io/badge/tests-302-3ddc84)](tests/)
@@ -14,10 +22,9 @@ not per session.**
 [![capabilities registered](https://img.shields.io/badge/capabilities%20registered-1-ffb86c)](pirx/registry.py)
 [![gated tools](https://img.shields.io/badge/gated%20tools-0-ffb86c)](pirx/mcp/gate.py)
 [![license](https://img.shields.io/badge/license-Apache--2.0-7d8590)](LICENSE)
-[![operator manual](https://img.shields.io/badge/operator%20manual-read%20online-7aa2f7)](https://jerzy99jerzy.github.io/pirx/)
 
-The last two badges are the point rather than an omission: **one capability
-and no gated tools** is the shipped state. The machinery is exercised before
+The capabilities and gated-tools badges are the point rather than an
+omission: **one capability and no gated tools** is the shipped state. The machinery is exercised before
 it guards anything, and every entry added to either registry is a reviewed
 code change (P3).
 
@@ -69,7 +76,7 @@ itself.
 | Approval is measurably attentive | 0.5.0.0 | A grant needs `AttentionEvidence`: a hash-selected field transcribed from the rendered bytes, an answer above a length-derived floor, a session budget. Verified at the surface and again at issuance. Demonstrates the approver operated on those bytes - never that they understood them. |
 | Evidence is a type, not a field | 0.6.0.0 | Why an action is warranted arrives as a `Justification` from a source adapter, so a second kind of evidence is an addition rather than a rewrite. The verdict path renders the same bytes it always did, held as a golden preimage. |
 
-**You are here: 0.7.6.2.** The `Since` column is the version in which a
+**You are here: 0.7.6.3.** The `Since` column is the version in which a
 property became enforced, not the version that announced it; the marker is
 pinned to `STATUS.json` by the docs audit, so it cannot drift past a bump.
 

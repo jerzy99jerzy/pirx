@@ -1,7 +1,7 @@
 # TODO
 
 ```
-Document:  docs/TODO.md, version 2.9
+Document:  docs/TODO.md, version 2.10
 Scope:     small, non-scope-bearing work - documentation, tooling, ergonomics.
            Anything that changes what Pirx does, or accepts a risk, belongs in
            the brief's deferral table (section 9) with an owning version, not
@@ -91,6 +91,11 @@ went. Kept as a short list so a reader does not conclude an item was dropped.
   this document's header excludes.
 
 ## Done recently
+
+- [x] **0.7.6.3** README links the manual's page where a reader lands: under
+  the tagline, and as the first badge rather than the last. The sentence
+  under the badges names the capabilities and gated-tools badges instead of
+  calling them "the last two", which they were not.
 
 - [x] **0.7.6.2** The manual has a page: `docs/MANUAL.md` rendered by
   `tools/build_site.py` and published by `.github/workflows/pages.yml`, ported
