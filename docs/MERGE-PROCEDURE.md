@@ -1,13 +1,17 @@
 # Merge procedure
 
 ```
-Document:  docs/MERGE-PROCEDURE.md, version 1.3
+Document:  docs/MERGE-PROCEDURE.md, version 1.4
 Scope:     this repository only. If any of this should become a family
            convention, it travels to cve-digest as a convention-amendment
            exchange entry (FAMILY.md 3.2). cve-digest's WORKFLOW.md is not
            vendored here (brief section 8), and this document is not
            vendored there.
 ```
+
+Changes in 1.4: the manual's page. The local gate needs the site parser
+installed once, and the last section holds the two repository settings the
+Pages workflow needs, how to set them and how to read them back.
 
 Changes in 1.3: the transfer check lists `*.patch` files instead of
 grepping the version prefix, which on the cve-digest 0.7.18.1 crossing also
@@ -75,6 +79,18 @@ The suite runs both documentation audits through `tests/test_docs_audit.py`,
 so this line is the whole gate: documentation drift fails here, not after a
 push. CI runs the audits again as the separate `docs-audit` job so a failure
 names itself.
+
+Since 0.7.6.2 the suite also builds the manual's page (`tests/test_site.py`),
+which needs the Markdown parser the site is built with. It is a build
+dependency, not a runtime one, pinned by hash; install it into the virtual
+environment once, the way the gate's test job does:
+
+```
+python -m pip install --require-hashes -r requirements-docs.txt
+```
+
+Without it the suite stops at collection with `ModuleNotFoundError: No module
+named 'markdown_it'`, which is the gate refusing rather than skipping.
 
 ### Before pushing: the check the gate cannot make
 
@@ -285,3 +301,125 @@ The `^{}` line must carry the bump commit's hash: it is the commit the
 annotated tag points at. The version in these blocks is written literally on
 purpose; it is an example, and tag commands are the one place in this
 procedure that takes no variable.
+
+## The manual's page (GitHub Pages)
+
+`docs/MANUAL.md` is published as the repository's site by
+`.github/workflows/pages.yml`, rendered by `tools/build_site.py`, at
+`https://jerzy99jerzy.github.io/pirx/`. It is a deployment of a document, and
+it is here because its deploy job is the only job in the repository that can
+mint an identity token (threat model PT22). The shape is ported from
+cve-digest's, whose deployment profile Part IV records the same settings for
+that repository; this section restates them for this one rather than
+pointing there (FAMILY.md 3.5).
+
+| Job | Holds | Runs |
+|---|---|---|
+| `build` | `contents: read`, and a checkout that keeps no credential | the parser from `requirements-docs.txt`, installed by hash; the builder; the artefact upload |
+| `deploy` | `pages: write` and `id-token: write`, in the `github-pages` environment, on `main` only | one step, `actions/deploy-pages`, pinned by commit |
+
+It runs on a push to `main` that touches the manual, `docs/site/` (the
+template, the stylesheet, the banner's still and the diagram drawings), the
+banner, the builder, `requirements-docs.txt` or the workflow itself, and by
+hand. A version bump alone does not republish: `pyproject.toml` is not in the
+list, so the version line on the page is the one current when the manual or
+the builder last changed. The page names the commit it was built from, and
+every link into the repository points at that commit.
+
+**What the repository has: not yet read back.** Nothing below has been run
+against this repository. The values are recorded here, with the date, by the
+first version after the reads, as cve-digest recorded its own after its
+first deployment.
+
+### Before the first run: the Pages source
+
+The source must be "GitHub Actions" (`build_type` `workflow`), or the deploy
+job fails. Set it before the pull request that adds the workflow merges, so
+the push that lands it is also the first deployment. The response names the
+site's address:
+
+```
+gh api -X POST repos/jerzy99jerzy/pirx/pages -f build_type=workflow --jq '.build_type, .html_url'
+```
+
+```
+gh api repos/jerzy99jerzy/pirx/pages --jq '.build_type, .html_url, .https_enforced'
+```
+
+Expected: `workflow` and `https://jerzy99jerzy.github.io/pirx/`; the third
+value is recorded as read. If the `POST` answers that a site already exists,
+stop: the second read says which source it has, and that case is not covered
+here.
+
+### The `github-pages` environment admits `main` alone
+
+The job's branch condition is then not the only thing between another ref and
+the site. GitHub creates the environment when the source is switched, and on
+cve-digest it created it with exactly this rule; this procedure still reads
+before it writes:
+
+```
+gh api repos/jerzy99jerzy/pirx/environments/github-pages --jq '.deployment_branch_policy'
+```
+
+```
+gh api repos/jerzy99jerzy/pirx/environments/github-pages/deployment-branch-policies --jq '.branch_policies[] | .type + " " + .name'
+```
+
+The rule is in place when the first read prints `custom_branch_policies` true
+and `protected_branches` false, and the second prints one line, `branch main`;
+nothing is written then. A rule admitting every protected branch is not the
+same control: it admits `main` today and widens the day a second branch is
+protected. Otherwise (a 404, a `null` policy, a protected-branches policy)
+the environment is switched to custom rules and given the one. The request
+carries booleans, so it goes in as JSON:
+
+```
+printf '%s\n' '{"deployment_branch_policy":{"protected_branches":false,"custom_branch_policies":true}}' > /tmp/pages-env.json
+```
+
+```
+gh api -X PUT repos/jerzy99jerzy/pirx/environments/github-pages --input /tmp/pages-env.json --jq '.deployment_branch_policy'
+```
+
+```
+gh api -X POST repos/jerzy99jerzy/pirx/environments/github-pages/deployment-branch-policies -f name=main -f type=branch --jq '.type + " " + .name'
+```
+
+A pattern found beside `main` is a second door and is deleted by its id
+(`.branch_policies[] | .id` in the second read), not kept. Then both reads
+again, with the same expected output.
+
+### After the merge
+
+The push to `main` that lands the workflow starts it. Watch that run rather
+than assuming it:
+
+```
+gh run list --workflow pages.yml --limit 3
+```
+
+The page answers when the run's `deploy` job is green. Its version line links
+the commit it was built from, which must be the merged bump's:
+
+```
+curl -s https://jerzy99jerzy.github.io/pirx/ | grep -o 'pirx/commit/[0-9a-f]*'
+```
+
+If the source was switched only after the merge, the first run failed at
+`deploy`; start it again by hand from `main`, which the workflow allows:
+
+```
+gh workflow run pages.yml --ref main
+```
+
+Optionally, the repository's website field, so the page is linked from the
+repository's front page as cve-digest's is:
+
+```
+gh repo edit jerzy99jerzy/pirx --homepage https://jerzy99jerzy.github.io/pirx/
+```
+
+```
+gh api repos/jerzy99jerzy/pirx --jq '.homepage'
+```

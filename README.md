@@ -5,15 +5,16 @@
 not per session.**
 
 [![gate](https://github.com/jerzy99jerzy/pirx/actions/workflows/gate.yml/badge.svg)](https://github.com/jerzy99jerzy/pirx/actions/workflows/gate.yml)
-[![version](https://img.shields.io/badge/version-0.7.6.1-7aa2f7)](https://github.com/jerzy99jerzy/pirx/releases)
+[![version](https://img.shields.io/badge/version-0.7.6.2-7aa2f7)](https://github.com/jerzy99jerzy/pirx/releases)
 [![python](https://img.shields.io/badge/python-3.14%2B-7aa2f7)](https://www.python.org/downloads/)
 [![runtime deps](https://img.shields.io/badge/runtime%20deps-0-3ddc84)](pyproject.toml)
-[![tests](https://img.shields.io/badge/tests-238-3ddc84)](tests/)
+[![tests](https://img.shields.io/badge/tests-302-3ddc84)](tests/)
 [![hostile attacks](https://img.shields.io/badge/hostile%20attacks-63-3ddc84)](tests/harness/CATALOGUE.md)
-[![threat rows](https://img.shields.io/badge/threat%20rows-PT1--PT21-9ccfd8)](docs/THREAT-MODEL.md)
+[![threat rows](https://img.shields.io/badge/threat%20rows-PT1--PT22-9ccfd8)](docs/THREAT-MODEL.md)
 [![capabilities registered](https://img.shields.io/badge/capabilities%20registered-1-ffb86c)](pirx/registry.py)
 [![gated tools](https://img.shields.io/badge/gated%20tools-0-ffb86c)](pirx/mcp/gate.py)
 [![license](https://img.shields.io/badge/license-Apache--2.0-7d8590)](LICENSE)
+[![operator manual](https://img.shields.io/badge/operator%20manual-read%20online-7aa2f7)](https://jerzy99jerzy.github.io/pirx/)
 
 The last two badges are the point rather than an omission: **one capability
 and no gated tools** is the shipped state. The machinery is exercised before
@@ -68,7 +69,7 @@ itself.
 | Approval is measurably attentive | 0.5.0.0 | A grant needs `AttentionEvidence`: a hash-selected field transcribed from the rendered bytes, an answer above a length-derived floor, a session budget. Verified at the surface and again at issuance. Demonstrates the approver operated on those bytes - never that they understood them. |
 | Evidence is a type, not a field | 0.6.0.0 | Why an action is warranted arrives as a `Justification` from a source adapter, so a second kind of evidence is an addition rather than a rewrite. The verdict path renders the same bytes it always did, held as a golden preimage. |
 
-**You are here: 0.7.6.1.** The `Since` column is the version in which a
+**You are here: 0.7.6.2.** The `Since` column is the version in which a
 property became enforced, not the version that announced it; the marker is
 pinned to `STATUS.json` by the docs audit, so it cannot drift past a bump.
 
@@ -421,6 +422,14 @@ drift fails locally rather than after a push. CI runs them again as a separate
 `docs-audit` job so a failure names itself. What each audit checks is listed
 in its own docstring rather than restated here, where it would drift.
 
+The suite also builds the manual's page, which needs the Markdown parser the
+site is built with: a build dependency, pinned by hash, that the `pirx`
+package does not import. Install it into the virtual environment once:
+
+```bash
+python -m pip install --require-hashes -r requirements-docs.txt
+```
+
 Branch protection is active on `main` with `enforce_admins`, so every change
 goes through a pull request. The merge procedure, including what `strict`
 status checks cost and how tags interact with rebase merges, is in
@@ -440,17 +449,18 @@ dispositioned as fixed, accepted with reasons, or deferred.
 
 | Document | Contents |
 |---|---|
-| **`docs/MANUAL.md`** | **Start here to use it**: install, both entry points, what to do at an approval prompt, reading the ledger, every refusal and what it means |
+| **`docs/MANUAL.md`** | **Start here to use it**: install, both entry points, what to do at an approval prompt, reading the ledger, every refusal and what it means. Also published as a page at [jerzy99jerzy.github.io/pirx](https://jerzy99jerzy.github.io/pirx/), rebuilt when the file or its builder changes on `main` |
 | `docs/PIRX-PROJECT-BRIEF.md` | Thesis, threat model, version plan, settled decisions and the deferral table |
 | `docs/THESIS.md` | Why approval is a capability grant, not a checkbox |
-| `docs/THREAT-MODEL.md` | PT1-PT21, each with its control or its named acceptance, and the test that measures it |
+| `docs/THREAT-MODEL.md` | PT1-PT22, each with its control or its named acceptance, and the test that measures it |
 | `docs/CONTRACT.md` | The `cve-digest.verdict/1` contract and the consumer-owned compatibility matrix |
 | `docs/ARCHITECTURE.md` | Implementation-level assumptions, every shipped sprint |
-| `docs/MERGE-PROCEDURE.md` | Branch protection, rebase, tags |
+| `docs/MERGE-PROCEDURE.md` | Branch protection, rebase, tags, and the repository settings the manual's page needs |
 | `docs/FAMILY.md` | Family practices and the human-carried exchange protocol; held here until its canonical home in cve-digest lands |
 | `docs/TODO.md` | Small non-scope work, each row with a named owner |
 | `tools/docs_audit.py` | The documentation consistency check that runs in the gate |
 | `tools/manual_audit.py` | The manual's constants, refusals, and events, checked against the code |
+| `tools/build_site.py` | Renders the manual as its page, and refuses one that would publish wrong; the gate builds the real manual through `tests/test_site.py` |
 | `docs/reviews/` | Pre-push reviews, one per version, findings dispositioned |
 | `docs/exchange/` | Development-level exchange entries with the upstream project |
 | `tests/harness/CATALOGUE.md` | The attack catalogue |

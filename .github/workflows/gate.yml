@@ -61,4 +61,8 @@ jobs:
         with:
           python-version: "3.14"
       - run: pip install pytest
+      # The site builder's parser, by hash, so tests/test_site.py builds the
+      # real page here and an edit that would publish broken fails before it
+      # reaches main. A build dependency only: the package imports none of it.
+      - run: pip install --require-hashes -r requirements-docs.txt
       - run: python -m pytest -q

@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="description" content="$description">
+<title>$title</title>
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<a class="skip" href="#manual">Skip to the manual</a>
+<header class="band">
+<div class="band-inner">
+<picture class="banner">
+<source srcset="$banner_still" media="(prefers-reduced-motion: reduce)">
+<img src="$banner" width="$banner_width" height="$banner_height" alt="$codename, remediation agent">
+</picture>
+<h1>$heading</h1>
+<p class="provenance">$provenance</p>
+</div>
+</header>
+<div class="frame">
+<nav class="toc" aria-label="Contents">
+<details open>
+<summary>Contents</summary>
+$toc
+</details>
+</nav>
+<main id="manual" class="manual" tabindex="-1">
+$body
+</main>
+</div>
+<footer class="foot">
+<div class="foot-inner">
+<p>$footer</p>
+</div>
+</footer>
+</body>
+</html>

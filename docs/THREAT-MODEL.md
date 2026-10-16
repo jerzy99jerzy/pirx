@@ -6,8 +6,9 @@
 > guardrail assumes the agent - and the human approving it - can be wrong.
 
 ```
-Document:  docs/THREAT-MODEL.md, version 1.2 (0.7.6.0: PT9 records issuance
-           before the grant file). 1.1 with 0.7.5.1; 1.0 shipped with
+Document:  docs/THREAT-MODEL.md, version 1.3 (0.7.6.2: PT22, the manual's
+           page). 1.2 with 0.7.6.0, PT9 recording issuance before the grant
+           file; 1.1 with 0.7.5.1; 1.0 shipped with
            0.1.0.0 as PT1-PT14; PT15 (0.5.0.0), PT16-PT20 (0.7.0.0) and
            PT21 (0.7.5.0) landed without a header change, corrected in 1.1
 Source:    PT1-PT14 from PIRX-PROJECT-BRIEF.md v1.2, section 5; each later
@@ -367,3 +368,95 @@ rather than an acceptance.
 `test_grant.py::test_a_rollback_smaller_than_the_elapsed_time_is_the_named_residual`
 (the residual, executable in the manner of A15: if this row gains a control,
 that test flips).
+
+## PT22 - The documentation site's deploy job holds an identity token
+
+Publishing `docs/MANUAL.md` as a GitHub Pages site (0.7.6.2) adds the first
+job in this repository that can mint an OIDC token. The deploy action hands
+the job's token to the Pages API so GitHub can check which branch a
+deployment came from, so the job needs `id-token: write` beside
+`pages: write`; the action's README states both as its minimum at the commit
+`.github/workflows/pages.yml` pins. The row is written in the version that
+adds the workflow, as cve-digest wrote its T17 before its own.
+
+**Why that is a threat here.** A token minted by that job names this
+repository, and any party configured to trust tokens from this repository
+accepts it whatever the job was for; cve-digest found exactly that, a
+federation provider admitting its deploy job's token as readily as its
+digest job's. Nothing in this tree configures such a trust today, and Pirx
+runs no workload that authenticates with a token; whether the owner has
+configured one outside the tree cannot be read from here, which is why the
+trigger below names it. Separately, the page is served from
+`jerzy99jerzy.github.io`, an origin every Pages site of the same owner
+shares, cve-digest's included *[inference: GitHub's addressing for project
+sites]*, so anything that executes on this site executes with that origin.
+
+- **Control, what runs beside the token.** The deploy job has one step, the
+  deploy action, first-party and pinned by commit. It checks out nothing,
+  installs nothing and runs no code from this repository. Everything that
+  runs repository code or a package from an index is in the build job, which
+  holds `contents: read` and no `id-token`, and checks out with
+  `persist-credentials: false`. What crosses from build to deploy is an
+  archive of static files, as data.
+- **Control, what can start it.** A push to `main` that touches the manual,
+  the site's sources, the builder or the workflow, and a hand trigger whose
+  deploy job is skipped off `main` by a job condition. There is no
+  `pull_request` trigger, so code proposed in a pull request never runs in a
+  workflow whose job graph holds `id-token`. The `github-pages` environment
+  is meant to admit deployments from `main` alone, by a branch rule
+  `docs/MERGE-PROCEDURE.md` sets and reads back, so the restriction survives
+  an edit that removes the job condition. Write access to `main` stays the
+  perimeter.
+- **Control, what the page can carry.** The builder escapes raw HTML in the
+  source, refuses any link that is not `https:`, a heading on the page or a
+  path in this tree, and writes a page under a Content-Security-Policy that
+  loads nothing from anywhere else and runs no script. The diagrams are SVG
+  files, which a reader can open directly, outside that policy. The builder
+  publishes one only if every element and attribute in it is on an allowlist
+  of exactly what mermaid-cli wrote for the three diagrams, with HTML only
+  inside a `foreignObject`; if its bytes hold no processing instruction,
+  declaration or comment; and if no value or text, read after character
+  references are expanded, holds a backslash (a CSS escape), `javascript:`,
+  `@import`, `@font-face`, `image-set(`, `image(`, `src(`, `expression(` or
+  a `url(...)` that is not a fragment of itself. The first version of this
+  check listed dangers instead, and an independent review found forms that
+  passed it, among them an animation rewriting an `href`, a stylesheet
+  processing instruction and HTML that fetches inside a `foreignObject`
+  (0.7.6.2 review); each is now a test case, as is a backslash written as
+  `&#92;`, which its second pass found getting past a check on raw bytes.
+  The page is a copy of a tracked document: no ledger, grant or key material
+  reaches it.
+- **Accepted, the parser's supply chain.** `markdown-it-py` and `mdurl` are
+  the first packages this repository installs from an index for anything but
+  its own checkers. They are pinned by version and hash in
+  `requirements-docs.txt` and installed with `--require-hashes`, in the build
+  job, which holds no token, and in the gate's test job, which holds no
+  identity token either. In the build job a compromised parser could publish
+  a page that says something the manual does not, and could not reach the
+  token. In the test job it is imported into the process that runs the whole
+  suite, so it could change any test's result and turn the required `pytest`
+  check green: a path toward `main` beside write access, not only toward the
+  page. Nothing audits the pins against advisory data, unlike cve-digest's,
+  and no bot moves them (`docs/TODO.md`, Rejected); `docs/TODO.md` owns a
+  hand check at the next change to them.
+- **Accepted, the drawings are made by hand.** An SVG is checked against
+  the allowlist and the value checks above, not for whether it draws what
+  its Mermaid block says. It is named for the block's hash, so a stale
+  drawing fails the gate, but a wrong one made for the current block would
+  publish.
+
+**Trigger:** any service configured to accept OIDC tokens from
+`jerzy99jerzy/pirx`, which turns the deploy job's token from a Pages
+credential into that service's, and the row then needs a condition on that
+side naming the workflow, as cve-digest's T17 concluded for its provider; or
+any page on the shared origin that runs script or stores state, which turns
+the shared origin from a fact into an exposure.
+**Lives in** `.github/workflows/pages.yml`, `tools/build_site.py`,
+`requirements-docs.txt`. **Measured by** `tests/test_workflow_identity.py`
+(the set of token holders, `write-all` and a trailing comment included;
+commit pinning of every action; each Pages job's exact permissions and the
+deploy job's single step; no pull-request trigger) and `tests/test_site.py`
+(each refusal the builder makes, the drawings' allowlists and value checks,
+the page's script-free shape). The environment's branch rule is a
+repository setting, read back by the procedure in `docs/MERGE-PROCEDURE.md`,
+and measured by no test.
