@@ -1,6 +1,6 @@
 {
   "project": "pirx",
-  "version": "0.7.6.2",
+  "version": "0.7.6.3",
   "consumes": [
     "cve-digest.verdict/1",
     "mcp/2026-07-28"
